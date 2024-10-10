@@ -12,7 +12,7 @@
 #include "cmsis/cmsis_device.h"
 #include "cmsis/stm32f0xx.h"
 #include "stm32f0xx_hal.h"
-#include "stm32f0xx_hal_spi.h"
+//#include "../system/include/stm32f0-hal/stm32f0xx_hal_spi.h"
 
 // ----------------------------------------------------------------------------
 //
@@ -315,7 +315,7 @@ main(int argc, char* argv[])
 	while (1)
 	{
 
-
+		trace_printf("This is Part 2 of Introductory Lab...\n");
 		refresh_OLED();
 	}
 }
@@ -522,7 +522,7 @@ void oled_Write( unsigned char Value )
     /* Send one 8-bit character:
        - This function also sets BIDIOE = 1 in SPI1_CR1
     */
-	HAL_SPI_Transmit( &SPI_Handle, &Value, 1, HAL_MAX_DELAY );
+	HAL_SPI_Transmit( &SPI_Handle, &Value, 1, HAL_MAX_DELAY ); //Header is there
 
 
     /* Wait until transmission is complete (TXE = 1 in SPI1_SR) */
@@ -554,7 +554,7 @@ void oled_config( void )
 //
 // Initialize the SPI interface
 //
-    HAL_SPI_Init( &SPI_Handle );
+    HAL_SPI_Init( &SPI_Handle ); //Header is there
 
 //
 // Enable the SPI
