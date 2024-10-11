@@ -1,3 +1,4 @@
+
 //
 // This file is part of the GNU ARM Eclipse distribution.
 // Copyright (c) 2014 Liviu Ionescu.
@@ -76,6 +77,7 @@ void myGPIOA_Init(void);
 void myTIM2_Init(void);
 void myEXTI_Init(void);
 //From lab 2: Modified frequency measurer
+uint16_t input_line = 1; //to tell which line (555 or function) we are currently pushing thru
 
 
 
@@ -314,7 +316,6 @@ main(int argc, char* argv[])
 	while (1)
 	{
 
-		trace_printf("This is Part 2 of Introductory Lab...\n");
 		refresh_OLED();
 	}
 }
@@ -407,23 +408,30 @@ void myEXTI_Init()
 {
 	/* Map EXTI2 line to PA2 */
 	// Relevant register: SYSCFG->EXTICR[0]
+	SYSCFG->EXTICR[0] |= SYSCFG_EXTICR1_EXTI0_PA ; //To connect PA0 to EXTI0 (button)
+	SYSCFG->EXTICR[0] |= SYSCFG_EXTICR1_EXTI1_PA ; //To connect PA1 to EXTI1
 	SYSCFG->EXTICR[0] |= SYSCFG_EXTICR1_EXTI2_PA ; //Now connect PA2 (0x00) to EXTI2 (bits 8-11 of EXTICR)
-
 
 	/* EXTI2 line interrupts: set rising-edge trigger */
 	// Relevant register: EXTI->RTSR
-	EXTI->RTSR |= EXTI_RTSR_TR2;
+	EXTI->RTSR |= EXTI_RTSR_TR0; //Set rising edge trigger for EXTI0
+	EXTI->RTSR |= EXTI_RTSR_TR1; //Set rising edge trigger for EXTI1
+	EXTI->RTSR |= EXTI_RTSR_TR2; //Set rising edge trigger for EXTI2
 
 	/* Unmask interrupts from EXTI2 line */
 	// Relevant register: EXTI->IMR
+	EXTI->IMR |= EXTI_IMR_IM0;
+	EXTI->IMR |= EXTI_IMR_IM1;
 	EXTI->IMR |= EXTI_IMR_IM2;
 
 	/* Assign EXTI2 interrupt priority = 0 in NVIC */
 	// Relevant register: NVIC->IP[2], or use NVIC_SetPriority
+	NVIC_SetPriority(EXTI0_1_IRQn, 0); //Make sure EXTI0 is priority 0
 	NVIC_SetPriority(EXTI2_3_IRQn, 0); //Make sure EXTI2 is priority 0
 
 	/* Enable EXTI2 interrupts in NVIC */
 	// Relevant register: NVIC->ISER[0], or use NVIC_EnableIRQ
+	NVIC_EnableIRQ(EXTI0_1_IRQn); //enable EXTI0 interrupt line
 	NVIC_EnableIRQ(EXTI2_3_IRQn); //enable EXTI2 interrupt line
 }
 
@@ -470,8 +478,8 @@ void EXTI2_3_IRQHandler()
 			//	- Calculate signal period and frequency.
 
 			//	- Print calculated values to the console.
-			trace_printf("Signal Period: %u us\n", (unsigned int)(Freq * 1e6));
-			trace_printf("Signal Frequency: %u Hz\n", (unsigned int)((1)/(Freq)));
+			//trace_printf("Signal Period: %u us\n", (unsigned int)(Freq * 1e6));
+			//trace_printf("Signal Frequency: %u Hz\n", (unsigned int)((1)/(Freq)));
 			//	  NOTE: Function trace_printf does not work
 			//	  with floating-point numbers: you must use
 			//	  "unsigned int" type to print your signal
@@ -490,6 +498,31 @@ void EXTI2_3_IRQHandler()
 }
 
 //From lab 2: Modified frequency measurer
+
+void EXTI0_1_IRQHandler()
+{
+
+	// Check if EXTI0 interrupt pending flag is indeed set
+	if ((EXTI->PR & EXTI_PR_PR0) != 0) {
+
+		trace_printf("button pressed\n");
+
+		if(input_line == 1) {
+			input_line = 2;
+		} else {
+			input_line = 1;
+		}
+		EXTI->PR |= EXTI_PR_PR0;
+		trace_printf("input line is now: %u \n",input_line);
+
+	}
+	// Check if EXTI1 interrupt pending flag is indeed set
+	if ((EXTI->PR & EXTI_PR_PR1) != 0){
+
+		trace_printf("555 yes\n");
+		EXTI->PR |= EXTI_PR_PR1;
+	}
+}
 
 
 void oled_Write_Cmd( unsigned char cmd )
