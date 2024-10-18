@@ -76,8 +76,11 @@ uint16_t edge_count = 0;
 void myGPIOA_Init(void);
 void myTIM2_Init(void);
 void myEXTI_Init(void);
+void ADC_reader(void); // for reading ADC values
 //From lab 2: Modified frequency measurer
 uint16_t input_line = 1; //to tell which line (555 or function) we are currently pushing thru
+uint32_t POT_val = 0; //raw data from the ADC
+uint32_t POT_pos = 0; //POT position in relation to POT max
 
 
 
@@ -312,10 +315,11 @@ main(int argc, char* argv[])
 	//From lab 2: Modified frequency measurer
 
 	oled_config();
+	ADC1->CR |= ADC_CR_ADEN; // Enable ADC
 
 	while (1)
 	{
-
+		ADC_reader();
 		refresh_OLED();
 	}
 }
@@ -364,10 +368,12 @@ void myGPIOA_Init()
 	/* Configure PA2 as input */
 	// Relevant register: GPIOA->MODER
 	GPIOA->MODER &= ~(GPIO_MODER_MODER2);
+	GPIOA->MODER &= ~(GPIO_MODER_MODER5); //pin 5 as analog input
 
 	/* Ensure no pull-up/pull-down for PA2 */
 	// Relevant register: GPIOA->PUPDR
 	GPIOA->PUPDR &= ~(GPIO_PUPDR_PUPDR2);
+	GPIOA->PUPDR &= ~(GPIO_PUPDR_PUPDR5);//pin 5
 }
 void myTIM2_Init()
 {
@@ -433,6 +439,25 @@ void myEXTI_Init()
 	// Relevant register: NVIC->ISER[0], or use NVIC_EnableIRQ
 	NVIC_EnableIRQ(EXTI0_1_IRQn); //enable EXTI0 interrupt line
 	NVIC_EnableIRQ(EXTI2_3_IRQn); //enable EXTI2 interrupt line
+}
+
+void myADC_Init()
+{
+	//clock needs to be enabled?
+
+	ADC1->CFGR1 |= ADC_CFGR1_CONT; //set up the ADC for continuous sampling
+
+	ADC1->CFGR1 |= ADC_CFGR1_OVRMOD; //Group sampling overrun manager needs to be enabled
+
+	ADC1->CHSELR |= ADC_CHSELR_CHSEL5; //set internal ADC to read from ADC channel 5 (PA5)
+
+	ADC1->CR = ADC_CR_ADCAL; // calibrate the ADC contol register
+
+	while (ADC1->CR == ADC_CR_ADCAL); //once done calibrating, the bit will be set back to 0. Ensure program waits for this
+
+	ADC1->CR |= ADC_CR_ADEN; //enable the ADC \
+
+	//hmmm some more code should probably go here
 }
 
 
@@ -522,6 +547,27 @@ void EXTI0_1_IRQHandler()
 		trace_printf("555 yes\n");
 		EXTI->PR |= EXTI_PR_PR1;
 	}
+}
+
+void ADC_reader(){
+
+
+	ADC1->CR |= ADC_CR_ADSTART; //Start group regular conversion
+
+	while ((ADC1->ISR & ADC_ISR_EOC) == 0){}; //wait until the end of conversion flag is set
+
+	trace_printf("yas\n");
+
+	ADC1->CR |= ADC_CR_ADSTP; //Stop group regular conversion
+
+	ADC1->ISR &= ~ADC_ISR_EOC; //Clear the end of conversion flag
+
+	POT_val = (ADC1->DR & ADC_DR_DATA);//read out the group conversion data to global variable
+
+	POT_pos = ((((float)POT_val)/((float)(0xFFF)))*5000); //position
+
+	trace_printf("POT values is: %u \nPOT position is: %u\n", POT_val, POT_pos);
+
 }
 
 
