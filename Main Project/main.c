@@ -76,7 +76,10 @@ uint16_t edge_count = 0;
 void myGPIOA_Init(void);
 void myTIM2_Init(void);
 void myEXTI_Init(void);
+void myADC_Init(void);
+void myDAC_Init(void);
 void ADC_reader(void); // for reading ADC values
+void DAC_writer(void); //For ouputting value through the DAC
 //From lab 2: Modified frequency measurer
 uint16_t input_line = 1; //to tell which line (555 or function) we are currently pushing thru
 uint32_t POT_val = 0; //raw data from the ADC
@@ -307,19 +310,19 @@ main(int argc, char* argv[])
 
 	SystemClock48MHz();
 
-	//From lab 2: Modified frequency measurer
 	myGPIOA_Init();		/* Initialize I/O port PA */
 	myTIM2_Init();		/* Initialize timer TIM2 */
 	myEXTI_Init();		/* Initialize EXTI */
 
-	//From lab 2: Modified frequency measurer
+    myADC_Init();       /* Initialize ADC*/
+    myDAC_Init();       /* Initialize DAC*/
 
 	oled_config();
-	ADC1->CR |= ADC_CR_ADEN; // Enable ADC
 
 	while (1)
 	{
-		ADC_reader();
+		ADC_reader(); //continuously reading from the ADC
+        DAC_writer(); //output to the DAC
 		refresh_OLED();
 	}
 }
@@ -370,10 +373,14 @@ void myGPIOA_Init()
 	GPIOA->MODER &= ~(GPIO_MODER_MODER2);
 	GPIOA->MODER &= ~(GPIO_MODER_MODER5); //pin 5 as analog input
 
-	/* Ensure no pull-up/pull-down for PA2 */
+    /*Configure PA4 as analog output*/
+    GPIOA->MODER |= GPIO_MODER_MODER4; 
+
+	/* Ensure no pull-up/pull-down for PA2, PA5, PA4 */
 	// Relevant register: GPIOA->PUPDR
 	GPIOA->PUPDR &= ~(GPIO_PUPDR_PUPDR2);
 	GPIOA->PUPDR &= ~(GPIO_PUPDR_PUPDR5);//pin 5
+    GPIOA->PUPDR &= ~(GPIO_PUPDR_PUPDR4);//pin 4
 }
 void myTIM2_Init()
 {
@@ -443,23 +450,36 @@ void myEXTI_Init()
 
 void myADC_Init()
 {
-	//clock needs to be enabled?
+	ADC1->CR |= ADC_CR_ADEN; //enable the ADC 
+    
+    RCC->APB2ENR |= RCC_APB2ENR_ADCEN; //Enable clock for the ADC1 on the board  
+    
+	ADC1->CHSELR |= ADC_CHSELR_CHSEL5; //set internal ADC to read from ADC channel 5 (PA5)                      
 
 	ADC1->CFGR1 |= ADC_CFGR1_CONT; //set up the ADC for continuous sampling
 
 	ADC1->CFGR1 |= ADC_CFGR1_OVRMOD; //Group sampling overrun manager needs to be enabled
 
-	ADC1->CHSELR |= ADC_CHSELR_CHSEL5; //set internal ADC to read from ADC channel 5 (PA5)
-
 	ADC1->CR = ADC_CR_ADCAL; // calibrate the ADC contol register
 
 	while (ADC1->CR == ADC_CR_ADCAL); //once done calibrating, the bit will be set back to 0. Ensure program waits for this
 
-	ADC1->CR |= ADC_CR_ADEN; //enable the ADC \
-
 	//hmmm some more code should probably go here
+
+   // while ((ADC1->ISR & ADC_ISR_EOC) == 0){}; //wait until the end of conversion flag is set
+
+    ADC1->ISR &= ~(ADC_ISR_EOC); //clear the end of conversion flag
 }
 
+void myDAC_Init(){
+
+    //Note that the built in DAC, when enabled is automatically connected to PA4. 
+
+    RCC->APB1ENR |= RCC_APB1ENR_DACEN;  //Enable the clock for the built in DAC
+
+    DAC->CR |= DAC_CR_EN1; //Enable DAC channel 
+
+}
 
 /* This handler is declared in system/src/cmsis/vectors_stm32f051x8.c */
 void TIM2_IRQHandler()
@@ -487,38 +507,39 @@ void EXTI2_3_IRQHandler()
 	if ((EXTI->PR & EXTI_PR_PR2) != 0)
 
 	{
-		// 1. If this is the first edge:
-		if (edge_count == 0) {
-			  //	- Clear count register (TIM2->CNT).
-			TIM2->CNT &= 0b00000000;
-			//	- Start timer (TIM2->CR1).
-			TIM2->CR1 |= TIM_CR1_CEN;
-			edge_count = 1;
+        //only want to manipulate values and measure if the input line is set to 2 currently (PA2 as input). 
+        if(input_line == 2){
+            // 1. If this is the first edge:
+            if (edge_count == 0) {
+                //	- Clear count register (TIM2->CNT).
+                TIM2->CNT &= 0b00000000;
+                //	- Start timer (TIM2->CR1).
+                TIM2->CR1 |= TIM_CR1_CEN;
+                edge_count = 1;
 
-		} else {
-			//	- Stop timer (TIM2->CR1).
-			TIM2->CR1 &= ~TIM_CR1_CEN;
-			//	- Read out count register (TIM2->CNT).
-			Freq = (float)(TIM2->CNT) / (float)SystemCoreClock; //CHANGED: updating global variable, not sure if this is right
-			//	- Calculate signal period and frequency.
+            } else {
+                //	- Stop timer (TIM2->CR1).
+                TIM2->CR1 &= ~TIM_CR1_CEN;
+                //	- Read out count register (TIM2->CNT).
+                Freq = (float)(TIM2->CNT) / (float)SystemCoreClock; //CHANGED: updating global variable, not sure if this is right
+                //	- Calculate signal period and frequency.
 
-			//	- Print calculated values to the console.
-			//trace_printf("Signal Period: %u us\n", (unsigned int)(Freq * 1e6));
-			//trace_printf("Signal Frequency: %u Hz\n", (unsigned int)((1)/(Freq)));
-			//	  NOTE: Function trace_printf does not work
-			//	  with floating-point numbers: you must use
-			//	  "unsigned int" type to print your signal
-			//	  period and frequency.
-			edge_count = 0;
+                //	- Print calculated values to the console.
+                //trace_printf("Signal Period: %u us\n", (unsigned int)(Freq * 1e6));
+                //trace_printf("Signal Frequency: %u Hz\n", (unsigned int)((1)/(Freq)));
+                //	  NOTE: Function trace_printf does not work
+                //	  with floating-point numbers: you must use
+                //	  "unsigned int" type to print your signal
+                //	  period and frequency.
+                edge_count = 0;
 
-		}
+            }
 
-		//
-		// 2. Clear EXTI2 interrupt pending flag (EXTI->PR).
-		// NOTE: A pending register (PR) bit is cleared
-		// by writing 1 to it.
-		//
-		EXTI->PR |= EXTI_PR_PR2;
+        }
+                    //
+            // 2. Clear EXTI2 interrupt pending flag (EXTI->PR).
+            // note we want to clear it no matter if the operations were performed or not
+            EXTI->PR |= EXTI_PR_PR2;
 	}
 }
 
@@ -562,6 +583,8 @@ void ADC_reader(){
 
 	ADC1->ISR &= ~ADC_ISR_EOC; //Clear the end of conversion flag
 
+    //We will want the potentiometer parameters to print to the screen, this processes and populated those variables
+
 	POT_val = (ADC1->DR & ADC_DR_DATA);//read out the group conversion data to global variable
 
 	POT_pos = ((((float)POT_val)/((float)(0xFFF)))*5000); //position
@@ -570,6 +593,11 @@ void ADC_reader(){
 
 }
 
+void DAC_writer(){
+
+    DAC->DHR12R1 = 0x111111111111; //writing a value to the 12 bit right aligned DAC register
+
+}
 
 void oled_Write_Cmd( unsigned char cmd )
 {
