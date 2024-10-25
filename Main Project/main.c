@@ -62,7 +62,7 @@
 
 
 
-unsigned int Freq = 0;  // Example: measured frequency value (global variable)
+unsigned int period = 0;  // Example: measured period value (global variable)
 unsigned int Res = 0;   // Example: measured resistance value (global variable)
 
 //From lab 2: Modified frequency measurer
@@ -321,8 +321,8 @@ main(int argc, char* argv[])
 
 	while (1)
 	{
-		ADC_reader(); //continuously reading from the ADC
-        DAC_writer(); //output to the DAC
+		//ADC_reader(); //continuously reading from the ADC
+        //DAC_writer(); //output to the DAC
 		refresh_OLED();
 	}
 }
@@ -347,7 +347,7 @@ void refresh_OLED( void )
     */
 
 
-    snprintf( Buffer, sizeof( Buffer ), "F: %5u Hz", Freq );
+    snprintf( Buffer, sizeof( Buffer ), "F: %5u Hz", period );
     /* Buffer now contains your character ASCII codes for LED Display
        - select PAGE (LED Display line) and set starting SEG (column)
        - for each c = ASCII code = Buffer[0], Buffer[1], ...,
@@ -374,7 +374,7 @@ void myGPIOA_Init()
 	GPIOA->MODER &= ~(GPIO_MODER_MODER5); //pin 5 as analog input
 
     /*Configure PA4 as analog output*/
-    GPIOA->MODER |= GPIO_MODER_MODER4; 
+    GPIOA->MODER |= GPIO_MODER_MODER4;
 
 	/* Ensure no pull-up/pull-down for PA2, PA5, PA4 */
 	// Relevant register: GPIOA->PUPDR
@@ -440,7 +440,7 @@ void myEXTI_Init()
 	/* Assign EXTI2 interrupt priority = 0 in NVIC */
 	// Relevant register: NVIC->IP[2], or use NVIC_SetPriority
 	NVIC_SetPriority(EXTI0_1_IRQn, 0); //Make sure EXTI0 is priority 0
-	NVIC_SetPriority(EXTI2_3_IRQn, 0); //Make sure EXTI2 is priority 0
+	NVIC_SetPriority(EXTI2_3_IRQn, 1); //Make sure EXTI2 is priority 0
 
 	/* Enable EXTI2 interrupts in NVIC */
 	// Relevant register: NVIC->ISER[0], or use NVIC_EnableIRQ
@@ -450,11 +450,11 @@ void myEXTI_Init()
 
 void myADC_Init()
 {
-	ADC1->CR |= ADC_CR_ADEN; //enable the ADC 
-    
-    RCC->APB2ENR |= RCC_APB2ENR_ADCEN; //Enable clock for the ADC1 on the board  
-    
-	ADC1->CHSELR |= ADC_CHSELR_CHSEL5; //set internal ADC to read from ADC channel 5 (PA5)                      
+	ADC1->CR |= ADC_CR_ADEN; //enable the ADC
+
+    RCC->APB2ENR |= RCC_APB2ENR_ADCEN; //Enable clock for the ADC1 on the board
+
+	ADC1->CHSELR |= ADC_CHSELR_CHSEL5; //set internal ADC to read from ADC channel 5 (PA5)
 
 	ADC1->CFGR1 |= ADC_CFGR1_CONT; //set up the ADC for continuous sampling
 
@@ -473,11 +473,11 @@ void myADC_Init()
 
 void myDAC_Init(){
 
-    //Note that the built in DAC, when enabled is automatically connected to PA4. 
+    //Note that the built in DAC, when enabled is automatically connected to PA4.
 
     RCC->APB1ENR |= RCC_APB1ENR_DACEN;  //Enable the clock for the built in DAC
 
-    DAC->CR |= DAC_CR_EN1; //Enable DAC channel 
+    DAC->CR |= DAC_CR_EN1; //Enable DAC channel
 
 }
 
@@ -507,10 +507,12 @@ void EXTI2_3_IRQHandler()
 	if ((EXTI->PR & EXTI_PR_PR2) != 0)
 
 	{
-        //only want to manipulate values and measure if the input line is set to 2 currently (PA2 as input). 
+		 trace_printf("edge count: %u \n", (unsigned int)(edge_count));
+        //only want to manipulate values and measure if the input line is set to 2 currently (PA2 as input).
         if(input_line == 2){
             // 1. If this is the first edge:
             if (edge_count == 0) {
+            	 trace_printf("first edge \n");
                 //	- Clear count register (TIM2->CNT).
                 TIM2->CNT &= 0b00000000;
                 //	- Start timer (TIM2->CR1).
@@ -518,15 +520,16 @@ void EXTI2_3_IRQHandler()
                 edge_count = 1;
 
             } else {
+            	 trace_printf("second edge \n");
                 //	- Stop timer (TIM2->CR1).
                 TIM2->CR1 &= ~TIM_CR1_CEN;
                 //	- Read out count register (TIM2->CNT).
-                Freq = (float)(TIM2->CNT) / (float)SystemCoreClock; //CHANGED: updating global variable, not sure if this is right
+                period = (float)(TIM2->CNT) / (float)SystemCoreClock;
                 //	- Calculate signal period and frequency.
 
                 //	- Print calculated values to the console.
-                //trace_printf("Signal Period: %u us\n", (unsigned int)(Freq * 1e6));
-                //trace_printf("Signal Frequency: %u Hz\n", (unsigned int)((1)/(Freq)));
+                trace_printf("Signal Period: %u us\n", (unsigned int)(period * 1e6));
+                trace_printf("Signal Frequency: %u Hz\n", (unsigned int)((1)/(period)));
                 //	  NOTE: Function trace_printf does not work
                 //	  with floating-point numbers: you must use
                 //	  "unsigned int" type to print your signal
