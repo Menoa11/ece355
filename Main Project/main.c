@@ -322,8 +322,8 @@ main(int argc, char* argv[])
 
 	while (1)
 	{
-		//ADC_reader(); //continuously reading from the ADC
-        DAC_writer(); //output to the DAC
+		ADC_reader(); //continuously reading from the ADC
+        //DAC_writer(); //output to the DAC
 		refresh_OLED();
 	}
 }
@@ -372,7 +372,7 @@ void myGPIOA_Init()
 	/* Configure PA2 as input */
 	// Relevant register: GPIOA->MODER
 	GPIOA->MODER &= ~(GPIO_MODER_MODER2);
-	GPIOA->MODER &= ~(GPIO_MODER_MODER5); //pin 5 as analog input
+	GPIOA->MODER |= (GPIO_MODER_MODER5); //pin 5 as analog input
 
     /*Configure PA4 as analog output*/
     GPIOA->MODER |= GPIO_MODER_MODER4;
@@ -453,15 +453,18 @@ void myADC_Init()
 {
 	RCC->APB2ENR |= RCC_APB2ENR_ADCEN; //Enable clock for the ADC1 on the board
 
-	ADC1->CR |= ADC_CR_ADEN; //enable the ADC
 
+
+	ADC1->CR = ADC_CR_ADCAL; // calibrate the ADC contol register
+
+	while ((ADC1->CR & ADC_CR_ADCAL) != 0 ); //once done calibrating, the bit will be set back to 0. Ensure program waits for this
+
+	ADC1->CR |= ADC_CR_ADEN; //enable the ADC
 	ADC1->CHSELR |= ADC_CHSELR_CHSEL5; //set internal ADC to read from ADC channel 5 (PA5)
 
 	ADC1->CFGR1 |= ADC_CFGR1_CONT; //set up the ADC for continuous sampling
 
-	ADC1->CR = ADC_CR_ADCAL; // calibrate the ADC contol register
-
-	while (ADC1->CR == ADC_CR_ADCAL); //once done calibrating, the bit will be set back to 0. Ensure program waits for this
+	ADC1->CR |= ADC_CR_ADSTART; //Start group regular conversion
 
 }
 
@@ -566,19 +569,23 @@ void EXTI0_1_IRQHandler()
 
 void ADC_reader(){
 
-	ADC1->CR |= ADC_CR_ADSTART; //Start group regular conversion
+
 
 	while ((ADC1->ISR & ADC_ISR_EOC) == 0){}; //wait until the end of conversion flag is set
 
-	ADC1->CR |= ADC_CR_ADSTP; //Stop group regular conversion
+	//ADC1->CR |= ADC_CR_ADSTP; //Stop group regular conversion
 
 	ADC1->ISR &= ~ADC_ISR_EOC; //Clear the end of conversion flag
 
+
+
     //We will want the potentiometer parameters to print to the screen, this processes and populated those variables
 
-	POT_val = (ADC1->DR & ADC_DR_DATA);//read out the group conversion data to global variable
+	POT_val = (ADC1->DR & ADC_DR_DATA);//read out the group conversion data to global variable ( & ADC_DR_DATA)
 
 	POT_pos = ((((float)POT_val)/((float)(0xFFF)))*5000); //position
+
+	//ADC1->DR &= ~ADC_DR_DATA_5; //clear the read data
 
 	trace_printf("POT values is: %u \nPOT position is: %u\n", POT_val, POT_pos);
 
@@ -587,13 +594,13 @@ void ADC_reader(){
 void DAC_writer(){
 
 	if(DAC_tracker == 0){
-		DAC->DHR12R1 = 0x444444444444; //writing a value to the 12 bit right aligned DAC register
+		DAC->DHR12R1 = 0x777788888888; //writing a value to the 12 bit right aligned DAC register
 		DAC_tracker = 1;
 	} else if (DAC_tracker == 1){
-		DAC->DHR12R1 = 0x888888888888; //writing a value to the 12 bit right aligned DAC register
+		//DAC->DHR12R1 = 0x888888888888; //writing a value to the 12 bit right aligned DAC register
 		DAC_tracker = 2;
 	} else {
-		DAC->DHR12R1 = 0xFFFFFFFFFFFF; //writing a value to the 12 bit right aligned DAC register
+		//DAC->DHR12R1 = 0xFFFFFFFFFFFF; //writing a value to the 12 bit right aligned DAC register
 		DAC_tracker = 0;
 	}
 }
