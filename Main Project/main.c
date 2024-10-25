@@ -62,7 +62,7 @@
 
 
 
-//unsigned int period = 0;  // Example: measured period value (global variable)
+unsigned int Freq = 0;  // Example: measured period value (global variable)
 unsigned int Res = 0;   // Example: measured resistance value (global variable)
 
 //From lab 2: Modified frequency measurer
@@ -347,7 +347,7 @@ void refresh_OLED( void )
     */
 
 
-    snprintf( Buffer, sizeof( Buffer ), "F: %5u Hz", period );
+    snprintf( Buffer, sizeof( Buffer ), "F: %5u Hz", Freq );
     /* Buffer now contains your character ASCII codes for LED Display
        - select PAGE (LED Display line) and set starting SEG (column)
        - for each c = ASCII code = Buffer[0], Buffer[1], ...,
@@ -507,12 +507,10 @@ void EXTI2_3_IRQHandler()
 	if ((EXTI->PR & EXTI_PR_PR2) != 0)
 
 	{
-		 trace_printf("edge count: %u \n", (unsigned int)(edge_count));
         //only want to manipulate values and measure if the input line is set to 2 currently (PA2 as input).
         if(input_line == 2){
             // 1. If this is the first edge:
             if (edge_count == 0) {
-            	 trace_printf("first edge \n");
                 //	- Clear count register (TIM2->CNT).
                 TIM2->CNT &= 0b00000000;
                 //	- Start timer (TIM2->CR1).
@@ -520,16 +518,15 @@ void EXTI2_3_IRQHandler()
                 edge_count = 1;
 
             } else {
-            	 trace_printf("second edge \n");
                 //	- Stop timer (TIM2->CR1).
                 TIM2->CR1 &= ~TIM_CR1_CEN;
                 //	- Read out count register (TIM2->CNT).
-                float period = (float)(TIM2->CNT) / (float)SystemCoreClock;
+                float periodd = (float)(TIM2->CNT) / (float)SystemCoreClock;
                 //	- Calculate signal period and frequency.
 
                 //	- Print calculated values to the console.
-                trace_printf("Signal Period: %u us\n", (unsigned int)(period * 1e6));
-                trace_printf("Signal Frequency: %u Hz\n", (unsigned int)((1)/(period)));
+                trace_printf("Signal Period: %u us\n", (unsigned int)(periodd * 1e6));
+                trace_printf("Signal Frequency: %u Hz\n", (unsigned int)((1)/(periodd)));
                 //	  NOTE: Function trace_printf does not work
                 //	  with floating-point numbers: you must use
                 //	  "unsigned int" type to print your signal
