@@ -62,7 +62,7 @@
 
 
 
-unsigned int period = 0;  // Example: measured period value (global variable)
+//unsigned int period = 0;  // Example: measured period value (global variable)
 unsigned int Res = 0;   // Example: measured resistance value (global variable)
 
 //From lab 2: Modified frequency measurer
@@ -524,7 +524,7 @@ void EXTI2_3_IRQHandler()
                 //	- Stop timer (TIM2->CR1).
                 TIM2->CR1 &= ~TIM_CR1_CEN;
                 //	- Read out count register (TIM2->CNT).
-                period = (float)(TIM2->CNT) / (float)SystemCoreClock;
+                float period = (float)(TIM2->CNT) / (float)SystemCoreClock;
                 //	- Calculate signal period and frequency.
 
                 //	- Print calculated values to the console.
