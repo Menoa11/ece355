@@ -73,12 +73,15 @@ unsigned int Res = 0;   // Example: measured resistance value (global variable)
 
 uint16_t edge_count = 0;
 uint16_t DAC_tracker = 0;
+uint16_t seg_clear_count = 0;
 
 void myGPIOA_Init(void);
+void myGPIOB_Init(void);
 void myTIM2_Init(void);
 void myEXTI_Init(void);
 void myADC_Init(void);
 void myDAC_Init(void);
+void mySPI_Init(void);
 void ADC_reader(void); // for reading ADC values
 void DAC_writer(void); //For ouputting value through the DAC
 //From lab 2: Modified frequency measurer
@@ -318,11 +321,13 @@ main(int argc, char* argv[])
     myADC_Init();       /* Initialize ADC*/
     myDAC_Init();       /* Initialize DAC*/
 
-	oled_config();
+    mySPI_Init();       /* Initialize for SPI communications with OLED*/
+    oled_config();
+    trace_printf("how many times: %u us\n", (unsigned int)(seg_clear_count));
 
 	while (1)
 	{
-		ADC_reader(); //continuously reading from the ADC
+		//ADC_reader(); //continuously reading from the ADC
         //DAC_writer(); //output to the DAC
 		refresh_OLED();
 	}
@@ -337,6 +342,10 @@ main(int argc, char* argv[])
 
 void refresh_OLED( void )
 {
+
+	//For testing purposes
+	oled_Write(0b00000111);
+
     // Buffer size = at most 16 characters per PAGE + terminating '\0'
     unsigned char Buffer[17];
 
@@ -383,6 +392,38 @@ void myGPIOA_Init()
 	GPIOA->PUPDR &= ~(GPIO_PUPDR_PUPDR5);//pin 5
     GPIOA->PUPDR &= ~(GPIO_PUPDR_PUPDR4);//pin 4
 }
+
+void myGPIOB_Init()
+{
+	/* Enable clock for GPIOB peripheral */
+	// Relevant register: RCC->AHBENR
+	RCC->AHBENR |= RCC_AHBENR_GPIOBEN;
+
+	/* Configure SPI ports for OLED */
+	//Configure PB3 to connect to serial clock SCLK on OLED
+	GPIOB->MODER |= GPIO_MODER_MODER3_1; //set as alternate function, allowing SPI and screen control
+
+	//Configure PB4 to connect to reset RES on OLED
+	GPIOB->MODER |= GPIO_MODER_MODER4; //analog mode
+
+	//Configure PB5 for MOSI to OLED
+	GPIOB->MODER |= GPIO_MODER_MODER5_1; //set as alternate function, allowing SPI and screen control
+
+	//Configure PB6 to connect to chip select CS on OLED
+	GPIOB->MODER |= GPIO_MODER_MODER6; //analog mode
+
+	//Configure PB7 to connect to data command DC on OLED
+	GPIOB->MODER |= GPIO_MODER_MODER7; //analog mode
+
+	/* Ensure no pull-up/pull-down*/
+	// Relevant register: GPIOB->PUPDR
+	GPIOB->PUPDR &= ~(GPIO_PUPDR_PUPDR3);
+	GPIOB->PUPDR &= ~(GPIO_PUPDR_PUPDR4);
+    GPIOB->PUPDR &= ~(GPIO_PUPDR_PUPDR5);
+	GPIOB->PUPDR &= ~(GPIO_PUPDR_PUPDR6);
+    GPIOB->PUPDR &= ~(GPIO_PUPDR_PUPDR7);
+}
+
 void myTIM2_Init()
 {
 	/* Enable clock for TIM2 peripheral */
@@ -475,6 +516,39 @@ void myDAC_Init(){
     RCC->APB1ENR |= RCC_APB1ENR_DACEN;  //Enable the clock for the built in DAC
 
     DAC->CR |= DAC_CR_EN1; //Enable DAC channel
+
+}
+
+void mySPI_Init(void) {
+
+
+	RCC->APB2ENR |= RCC_APB2ENR_SPI1EN; //Enable the SPI clock
+
+	//taken from SPI initialization example in interfacing slides
+
+	SPI_Handle.Instance = SPI1;
+
+	SPI_Handle.Init.Direction = SPI_DIRECTION_1LINE;
+
+	SPI_Handle.Init.Mode = SPI_MODE_MASTER;
+
+	SPI_Handle.Init.DataSize = SPI_DATASIZE_8BIT;
+
+	SPI_Handle.Init.CLKPolarity = SPI_POLARITY_LOW;
+
+	SPI_Handle.Init.CLKPhase = SPI_PHASE_1EDGE;
+
+	SPI_Handle.Init.NSS = SPI_NSS_SOFT;
+
+	SPI_Handle.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_256;
+
+	SPI_Handle.Init.FirstBit = SPI_FIRSTBIT_MSB;
+
+	SPI_Handle.Init.CRCPolynomial = 7;
+
+	HAL_SPI_Init(&SPI_Handle); /* initialize SPI1 (CMSIS) */
+
+	__HAL_SPI_ENABLE(&SPI_Handle); /* enable SPI1 (CMSIS) */
 
 }
 
@@ -608,19 +682,35 @@ void DAC_writer(){
 void oled_Write_Cmd( unsigned char cmd )
 {
     //... // make PB6 = CS# = 1
+	GPIOB->ODR |= GPIO_ODR_6;
+
     //... // make PB7 = D/C# = 0
+	GPIOB->ODR &= ~(GPIO_ODR_7);
+
     //... // make PB6 = CS# = 0
+	GPIOB->ODR &= ~(GPIO_ODR_6);
+
     oled_Write( cmd );
+
     //... // make PB6 = CS# = 1
+	GPIOB->ODR |= GPIO_ODR_6;
 }
 
 void oled_Write_Data( unsigned char data )
 {
     //... // make PB6 = CS# = 1
+	GPIOB->ODR |= GPIO_ODR_6;
+
     //... // make PB7 = D/C# = 1
+	GPIOB->ODR |= GPIO_ODR_7;
+
     //... // make PB6 = CS# = 0
+	GPIOB->ODR &= ~(GPIO_ODR_6);
+
     oled_Write( data );
+
     //... // make PB6 = CS# = 1
+	GPIOB->ODR |= GPIO_ODR_6;
 }
 
 
@@ -629,7 +719,7 @@ void oled_Write( unsigned char Value )
 
     /* Wait until SPI1 is ready for writing (TXE = 1 in SPI1_SR) */
 
-
+	while ((SPI1->SR & SPI_SR_TXE) == 0){}; //wait until transmit buffer empty flag is set
 
     /* Send one 8-bit character:
        - This function also sets BIDIOE = 1 in SPI1_CR1
@@ -638,47 +728,22 @@ void oled_Write( unsigned char Value )
 
 
     /* Wait until transmission is complete (TXE = 1 in SPI1_SR) */
-
-
-
+	while ((SPI1->SR & SPI_SR_TXE) == 0){}; //wait until transmit buffer empty flag is set
 }
 
 
 void oled_config( void )
 {
 
-// Don't forget to enable GPIOB clock in RCC
-// Don't forget to configure PB3/PB5 as AF0
-// Don't forget to enable SPI1 clock in RCC
-
-    SPI_Handle.Instance = SPI1;
-
-    SPI_Handle.Init.Direction = SPI_DIRECTION_1LINE;
-    SPI_Handle.Init.Mode = SPI_MODE_MASTER;
-    SPI_Handle.Init.DataSize = SPI_DATASIZE_8BIT;
-    SPI_Handle.Init.CLKPolarity = SPI_POLARITY_LOW;
-    SPI_Handle.Init.CLKPhase = SPI_PHASE_1EDGE;
-    SPI_Handle.Init.NSS = SPI_NSS_SOFT;
-    SPI_Handle.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_256;
-    SPI_Handle.Init.FirstBit = SPI_FIRSTBIT_MSB;
-    SPI_Handle.Init.CRCPolynomial = 7;
-
-//
-// Initialize the SPI interface
-//
-    HAL_SPI_Init( &SPI_Handle ); //Header is there
-
-//
-// Enable the SPI
-//
-    __HAL_SPI_ENABLE( &SPI_Handle );
+    // Reset LED Display (RES# = PB4):
+       // make pin PB4 = 0, wait for a few ms
+	   GPIOB->ODR &= ~(GPIO_ODR_4);
+	   HAL_Delay(3); //in the stm32f0xx_hal.c file, waits for 3ms
 
 
-    /* Reset LED Display (RES# = PB4):
-       - make pin PB4 = 0, wait for a few ms
-       - make pin PB4 = 1, wait for a few ms
-    */
-
+       // make pin PB4 = 1, wait for a few ms
+       GPIOB->ODR |= GPIO_ODR_4;
+	   HAL_Delay(3); //in the stm32f0xx_hal.c file, waits for 3ms
 
 
 //
@@ -695,7 +760,30 @@ void oled_config( void )
            set starting SEG = 0
            call oled_Write_Data( 0x00 ) 128 times
     */
+    unsigned char page = 0xB0;
+    unsigned char segupper = 0x10;
+    unsigned char seglower = 0x00;
 
+
+
+    for(int i =0; i <= 7; i++){
+    	oled_Write_Cmd(page); //select the page
+
+    	for(int j = 0; j <=7; j++){
+    		oled_Write_Cmd(segupper); //select the upper bits of segment address
+
+        	for(int k = 0; k <=15; k++){
+        		oled_Write_Cmd(seglower); //select the lower bits of segment address
+        		oled_Write_Data(0x00);
+        		seglower++;
+        		seg_clear_count++;
+        	}
+
+    		segupper++;
+    	}
+
+    	page++;
+    }
 
 
 
