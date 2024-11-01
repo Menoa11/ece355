@@ -71,6 +71,11 @@ unsigned int Res = 0;   // Example: measured resistance value (global variable)
 /* Maximum possible setting for overflow */
 #define myTIM2_PERIOD ((uint32_t)0xFFFFFFFF)
 
+/* 1ms prescaler */
+#define myTIM3_PRESCALER (47999)
+/* 10ms delay time as a base value*/
+#define myTIM3_PERIOD (10)
+
 uint16_t edge_count = 0;
 uint16_t DAC_tracker = 0;
 uint16_t seg_clear_count = 0;
@@ -78,12 +83,14 @@ uint16_t seg_clear_count = 0;
 void myGPIOA_Init(void);
 void myGPIOB_Init(void);
 void myTIM2_Init(void);
+void myTIM3_Init(void);
 void myEXTI_Init(void);
 void myADC_Init(void);
 void myDAC_Init(void);
 void mySPI_Init(void);
 void ADC_reader(void); // for reading ADC values
 void DAC_writer(void); //For ouputting value through the DAC
+void wait(uint32_t wait_time); //Use tim3 to generate a delay
 //From lab 2: Modified frequency measurer
 uint16_t input_line = 1; //to tell which line (555 or function) we are currently pushing thru
 uint32_t POT_val = 0; //raw data from the ADC
@@ -316,6 +323,7 @@ main(int argc, char* argv[])
 
 	myGPIOA_Init();		/* Initialize I/O port PA */
 	myTIM2_Init();		/* Initialize timer TIM2 */
+	myTIM3_Init();		/* Initialize timer TIM3 */
 	myEXTI_Init();		/* Initialize EXTI */
 
     myADC_Init();       /* Initialize ADC*/
@@ -458,6 +466,40 @@ void myTIM2_Init()
 
 }
 
+void myTIM3_Init()
+{
+	/* Enable clock for TIM3 peripheral */
+	// Relevant register: RCC->APB1ENR
+	RCC->APB1ENR |= RCC_APB1ENR_TIM3EN;
+
+	/* Configure TIM3: buffer auto-reload, count up, stop on overflow,
+	 * enable update events, interrupt on overflow only */
+	// Relevant register: TIM3->CR1
+	TIM3->CR1 = 0x008C;
+
+	/* Set clock prescaler value */
+	TIM3->PSC = myTIM3_PRESCALER;
+	/* Set auto-reloaded delay */
+	TIM3->ARR = myTIM3_PERIOD;
+
+	/* Update timer registers */
+	// Relevant register: TIM3->EGR
+	TIM3->EGR = 0x0001;
+
+	/* Assign TIM3 interrupt priority = 0 in NVIC */
+	// Relevant register: NVIC->IP[3], or use NVIC_SetPriority
+	NVIC_SetPriority(TIM3_IRQn, 0);
+
+	/* Enable TIM3 interrupts in NVIC */
+	// Relevant register: NVIC->ISER[0], or use NVIC_EnableIRQ
+	NVIC_EnableIRQ(TIM3_IRQn);
+
+	/* Enable update interrupt generation */
+	// Relevant register: TIM3->DIER
+	TIM3->DIER |= TIM_DIER_UIE;
+
+}
+
 
 void myEXTI_Init()
 {
@@ -570,6 +612,24 @@ void TIM2_IRQHandler()
 	}
 }
 
+/* This handler is declared in system/src/cmsis/vectors_stm32f051x8.c */
+void TIM3_IRQHandler()
+{
+	/* Check if update interrupt flag is indeed set */
+	if ((TIM3->SR & TIM_SR_UIF) != 0)
+	{
+		trace_printf("\n*** Overflow! ***\n");
+
+		/* Clear update interrupt flag */
+		// Relevant register: TIM3->SR
+		TIM3->SR &= ~(TIM_SR_UIF);
+
+		/* Restart stopped timer */
+		// Relevant register: TIM3->CR1
+		TIM3->CR1 |= TIM_CR1_CEN;
+	}
+}
+
 
 /* This handler is declared in system/src/cmsis/vectors_stm32f051x8.c */
 void EXTI2_3_IRQHandler()
@@ -679,6 +739,27 @@ void DAC_writer(){
 	}
 }
 
+void wait(uint32_t wait_time){
+
+    //	- Clear count register (TIM2->CNT).
+    TIM3->CNT &= 0b00000000;
+
+    TIM3->ARR = wait_time; //set timer counting period to the desired time
+
+    TIM3->EGR |= TIM_EGR_UG; //reset the counter
+
+    TIM3->CR1 |= TIM_CR1_CEN; //start timer
+
+    while ((TIM3->SR & TIM_SR_UIF) == 0){}; //wait for update interrupt flag to be set (timer done)
+    
+    //	- Stop timer (TIM3->CR1).
+    TIM3->CR1 &= ~TIM_CR1_CEN;
+
+    //reset interrupt flag
+    TIM3->SR &= ~(TIM_SR_UIF); 
+
+}
+
 void oled_Write_Cmd( unsigned char cmd )
 {
     //... // make PB6 = CS# = 1
@@ -738,13 +819,11 @@ void oled_config( void )
     // Reset LED Display (RES# = PB4):
        // make pin PB4 = 0, wait for a few ms
 	   GPIOB->ODR &= ~(GPIO_ODR_4);
-	   HAL_Delay(3); //in the stm32f0xx_hal.c file, waits for 3ms
-
+	   wait(3);
 
        // make pin PB4 = 1, wait for a few ms
        GPIOB->ODR |= GPIO_ODR_4;
-	   HAL_Delay(3); //in the stm32f0xx_hal.c file, waits for 3ms
-
+	   wait(3);
 
 //
 // Send initialization commands to LED Display
