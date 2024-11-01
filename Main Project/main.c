@@ -96,8 +96,6 @@ void wait(uint32_t wait_time); //Use tim3 to generate a delay
 uint16_t input_line = 1; //to tell which line (555 or function) we are currently pushing thru
 uint32_t POT_val = 0; //raw data from the ADC
 uint32_t POT_pos = 0; //POT position in relation to POT max
-unsigned char segupper = 0x10;
-unsigned char seglower = 0x00;
 uint16_t bufferindex = 0;
 uint16_t characterindex = 0;
 
@@ -368,35 +366,20 @@ void refresh_OLED( void )
            send 8 bytes in Characters[c][0-7] to LED Display
     */
     oled_Write_Cmd(0xB0); //select the first page
+    oled_Write_Cmd(0x10); //select rfirst segment
+    oled_Write_Cmd(0x00); //select rfirst segment
 
-    for(int j1 = 0; j1 <=7; j1++){
-        oled_Write_Cmd(segupper); //select the upper bits of segment address
+    while(Buffer[bufferindex] != '\0') {
 
-        for(int k1 = 0; k1 <=15; k1++){
-        	oled_Write_Cmd(seglower); //select the lower bits of segment address
+        while(characterindex <= 7) {
+
         	oled_Write_Data(Characters[Buffer[bufferindex]][characterindex]);
+
         	characterindex++;
-        	refresh_oled_count++;
-
-        	//if we have reached the end of the 8 (8bit) data strings in Characters,
-        	//need to go to the next buffer index.
-        	if(characterindex == 7){
-        		bufferindex++; //increment to next buffer index
-        		characterindex = 0; //reset to 0 to increment through characters 0-7 again
-        	}
-        	seglower++;
-            //trace_printf("how many times: %u\n", (unsigned int)(refresh_oled_count));
-            //trace_printf("inner index value: %u\n", (unsigned int)(k1));
+            refresh_oled_count++;
         }
-        segupper++;
-        //trace_printf("outer index value: %u\n", (unsigned int)(j1));
-
+        bufferindex++;
     }
-
-    segupper = 0x10;
-    seglower = 0x00;
-
-
 
     snprintf( Buffer, sizeof( Buffer ), "F: %5u Hz", Freq );
     /* Buffer now contains your character ASCII codes for LED Display
