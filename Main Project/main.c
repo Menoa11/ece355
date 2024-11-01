@@ -63,7 +63,7 @@
 
 
 unsigned int Freq = 0;  // Example: measured period value (global variable)
-unsigned int Res = 0;   // Example: measured resistance value (global variable)
+unsigned int Res = 800;   // Example: measured resistance value (global variable)
 
 //From lab 2: Modified frequency measurer
 /* Clock prescaler for TIM2 timer: no prescaling */
@@ -338,11 +338,13 @@ main(int argc, char* argv[])
     oled_config();
     //trace_printf("how many times: %u us\n", (unsigned int)(seg_clear_count));
 
+	refresh_OLED();
+
 	while (1)
 	{
 		//ADC_reader(); //continuously reading from the ADC
         //DAC_writer(); //output to the DAC
-		refresh_OLED();
+		//refresh_OLED();
 	}
 }
 
@@ -383,11 +385,11 @@ void refresh_OLED( void )
         		characterindex = 0; //reset to 0 to increment through characters 0-7 again
         	}
         	seglower++;
-            trace_printf("how many times: %u\n", (unsigned int)(refresh_oled_count));
-            trace_printf("inner index value: %u\n", (unsigned int)(k1));
+            //trace_printf("how many times: %u\n", (unsigned int)(refresh_oled_count));
+            //trace_printf("inner index value: %u\n", (unsigned int)(k1));
         }
         segupper++;
-        trace_printf("outer index value: %u\n", (unsigned int)(j1));
+        //trace_printf("outer index value: %u\n", (unsigned int)(j1));
 
     }
 
