@@ -74,11 +74,12 @@ unsigned int Res = 0;   // Example: measured resistance value (global variable)
 /* 1ms prescaler */
 #define myTIM3_PRESCALER (47999)
 /* 10ms delay time as a base value*/
-#define myTIM3_PERIOD (10)
+#define myTIM3_PERIOD (100)
 
 uint16_t edge_count = 0;
 uint16_t DAC_tracker = 0;
-uint16_t seg_clear_count = 0;
+//uint16_t seg_clear_count = 0;
+uint16_t refresh_oled_count = 0;
 
 void myGPIOA_Init(void);
 void myGPIOB_Init(void);
@@ -95,6 +96,10 @@ void wait(uint32_t wait_time); //Use tim3 to generate a delay
 uint16_t input_line = 1; //to tell which line (555 or function) we are currently pushing thru
 uint32_t POT_val = 0; //raw data from the ADC
 uint32_t POT_pos = 0; //POT position in relation to POT max
+unsigned char segupper = 0x10;
+unsigned char seglower = 0x00;
+uint16_t bufferindex = 0;
+uint16_t characterindex = 0;
 
 
 
@@ -331,7 +336,7 @@ main(int argc, char* argv[])
 
     mySPI_Init();       /* Initialize for SPI communications with OLED*/
     oled_config();
-    trace_printf("how many times: %u us\n", (unsigned int)(seg_clear_count));
+    //trace_printf("how many times: %u us\n", (unsigned int)(seg_clear_count));
 
 	while (1)
 	{
@@ -351,9 +356,6 @@ main(int argc, char* argv[])
 void refresh_OLED( void )
 {
 
-	//For testing purposes
-	oled_Write(0b00000111);
-
     // Buffer size = at most 16 characters per PAGE + terminating '\0'
     unsigned char Buffer[17];
 
@@ -363,6 +365,35 @@ void refresh_OLED( void )
        - for each c = ASCII code = Buffer[0], Buffer[1], ...,
            send 8 bytes in Characters[c][0-7] to LED Display
     */
+    oled_Write_Cmd(0xB0); //select the first page
+
+    for(int j1 = 0; j1 <=7; j1++){
+        oled_Write_Cmd(segupper); //select the upper bits of segment address
+
+        for(int k1 = 0; k1 <=15; k1++){
+        	oled_Write_Cmd(seglower); //select the lower bits of segment address
+        	oled_Write_Data(Characters[Buffer[bufferindex]][characterindex]);
+        	characterindex++;
+        	refresh_oled_count++;
+
+        	//if we have reached the end of the 8 (8bit) data strings in Characters,
+        	//need to go to the next buffer index.
+        	if(characterindex == 7){
+        		bufferindex++; //increment to next buffer index
+        		characterindex = 0; //reset to 0 to increment through characters 0-7 again
+        	}
+        	seglower++;
+            trace_printf("how many times: %u\n", (unsigned int)(refresh_oled_count));
+            trace_printf("inner index value: %u\n", (unsigned int)(k1));
+        }
+        segupper++;
+        trace_printf("outer index value: %u\n", (unsigned int)(j1));
+
+    }
+
+    segupper = 0x10;
+    seglower = 0x00;
+
 
 
     snprintf( Buffer, sizeof( Buffer ), "F: %5u Hz", Freq );
@@ -371,11 +402,12 @@ void refresh_OLED( void )
        - for each c = ASCII code = Buffer[0], Buffer[1], ...,
            send 8 bytes in Characters[c][0-7] to LED Display
     */
+    oled_Write_Cmd(0xB1); //select the first page
 
 	/* Wait for ~100 ms (for example) to get ~10 frames/sec refresh rate
        - You should use TIM3 to implement this delay (e.g., via polling)
     */
-
+    wait(100);
 }
 
 //From lab 2: Modified frequency measurer
@@ -600,7 +632,7 @@ void TIM2_IRQHandler()
 	/* Check if update interrupt flag is indeed set */
 	if ((TIM2->SR & TIM_SR_UIF) != 0)
 	{
-		trace_printf("\n*** Overflow! ***\n");
+		trace_printf("\n*** Overflow2! ***\n");
 
 		/* Clear update interrupt flag */
 		// Relevant register: TIM2->SR
@@ -618,7 +650,7 @@ void TIM3_IRQHandler()
 	/* Check if update interrupt flag is indeed set */
 	if ((TIM3->SR & TIM_SR_UIF) != 0)
 	{
-		trace_printf("\n*** Overflow! ***\n");
+		//trace_printf("\n*** Overflow3! ***\n");
 
 		/* Clear update interrupt flag */
 		// Relevant register: TIM3->SR
@@ -751,12 +783,9 @@ void wait(uint32_t wait_time){
     TIM3->CR1 |= TIM_CR1_CEN; //start timer
 
     while ((TIM3->SR & TIM_SR_UIF) == 0){}; //wait for update interrupt flag to be set (timer done)
-    
+
     //	- Stop timer (TIM3->CR1).
     TIM3->CR1 &= ~TIM_CR1_CEN;
-
-    //reset interrupt flag
-    TIM3->SR &= ~(TIM_SR_UIF); 
 
 }
 
@@ -840,8 +869,8 @@ void oled_config( void )
            call oled_Write_Data( 0x00 ) 128 times
     */
     unsigned char page = 0xB0;
-    unsigned char segupper = 0x10;
-    unsigned char seglower = 0x00;
+    unsigned char segupper2 = 0x10;
+    unsigned char seglower2 = 0x00;
 
 
 
@@ -849,16 +878,16 @@ void oled_config( void )
     	oled_Write_Cmd(page); //select the page
 
     	for(int j = 0; j <=7; j++){
-    		oled_Write_Cmd(segupper); //select the upper bits of segment address
+    		oled_Write_Cmd(segupper2); //select the upper bits of segment address
 
         	for(int k = 0; k <=15; k++){
-        		oled_Write_Cmd(seglower); //select the lower bits of segment address
+        		oled_Write_Cmd(seglower2); //select the lower bits of segment address
         		oled_Write_Data(0x00);
-        		seglower++;
-        		seg_clear_count++;
+        		seglower2++;
+        		//seg_clear_count++;
         	}
 
-    		segupper++;
+    		segupper2++;
     	}
 
     	page++;
