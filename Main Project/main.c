@@ -336,13 +336,14 @@ main(int argc, char* argv[])
     oled_config();
     //trace_printf("how many times: %u us\n", (unsigned int)(seg_clear_count));
 
-	refresh_OLED();
+	//refresh_OLED();
 
 	while (1)
 	{
 		//ADC_reader(); //continuously reading from the ADC
         //DAC_writer(); //output to the DAC
-		//refresh_OLED();
+		refresh_OLED();
+
 	}
 }
 
@@ -365,21 +366,21 @@ void refresh_OLED( void )
        - for each c = ASCII code = Buffer[0], Buffer[1], ...,
            send 8 bytes in Characters[c][0-7] to LED Display
     */
-    oled_Write_Cmd(0xB0); //select the first page
-    oled_Write_Cmd(0x10); //select rfirst segment
-    oled_Write_Cmd(0x00); //select rfirst segment
-
-    while(Buffer[bufferindex] != '\0') {
-
-        while(characterindex <= 7) {
-
-        	oled_Write_Data(Characters[Buffer[bufferindex]][characterindex]);
-
-        	characterindex++;
-            refresh_oled_count++;
-        }
-        bufferindex++;
-    }
+//    oled_Write_Cmd(0xB0); //select the first page
+//    oled_Write_Cmd(0x10); //select rfirst segment
+//    oled_Write_Cmd(0x02); //select rfirst segment
+//
+//    while(Buffer[bufferindex] != '\0') {
+//
+//        while(characterindex <= 7) {
+//
+//        	oled_Write_Data(Characters[Buffer[bufferindex]][characterindex]);
+//
+//        	characterindex++;
+//            refresh_oled_count++;
+//        }
+//        bufferindex++;
+//    }
 
     snprintf( Buffer, sizeof( Buffer ), "F: %5u Hz", Freq );
     /* Buffer now contains your character ASCII codes for LED Display
@@ -387,7 +388,7 @@ void refresh_OLED( void )
        - for each c = ASCII code = Buffer[0], Buffer[1], ...,
            send 8 bytes in Characters[c][0-7] to LED Display
     */
-    oled_Write_Cmd(0xB1); //select the first page
+    //oled_Write_Cmd(0xB1); //select the first page
 
 	/* Wait for ~100 ms (for example) to get ~10 frames/sec refresh rate
        - You should use TIM3 to implement this delay (e.g., via polling)
@@ -745,7 +746,7 @@ void ADC_reader(){
 void DAC_writer(){
 
 	if(DAC_tracker == 0){
-		DAC->DHR12R1 = 0x777788888888; //writing a value to the 12 bit right aligned DAC register
+		//DAC->DHR12R1 = 0x777788888888; //writing a value to the 12 bit right aligned DAC register
 		DAC_tracker = 1;
 	} else if (DAC_tracker == 1){
 		//DAC->DHR12R1 = 0x888888888888; //writing a value to the 12 bit right aligned DAC register
@@ -855,24 +856,24 @@ void oled_config( void )
     */
     unsigned char page = 0xB0;
     unsigned char segupper2 = 0x10;
-    unsigned char seglower2 = 0x00;
+    unsigned char seglower2 = 0x02;
 
 
 
-    for(int i =0; i <= 7; i++){
-    	oled_Write_Cmd(page); //select the page
+    for(int i = 0; i <= 7; i++){
+    	oled_Write_Cmd(page);//select the page
 
-    	for(int j = 0; j <=7; j++){
-    		oled_Write_Cmd(segupper2); //select the upper bits of segment address
+    	for(int j = 0; j <=127; j++){
+    		oled_Write_Cmd(seglower2);//select the lower part of the segment address
+    		oled_Write_Cmd(segupper2);//select the upper part of the segment address
+    		oled_Write_Data(0x0); //write 8-bit value to the display
 
-        	for(int k = 0; k <=15; k++){
-        		oled_Write_Cmd(seglower2); //select the lower bits of segment address
-        		oled_Write_Data(0x00);
-        		seglower2++;
-        		//seg_clear_count++;
-        	}
-
-    		segupper2++;
+    		if (seglower2 == 0xF){
+    			segupper2++;
+				seglower2 = 0x0;
+    		} else {
+    			seglower2++;
+    		}
     	}
 
     	page++;
