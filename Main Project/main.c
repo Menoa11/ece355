@@ -384,18 +384,25 @@ void refresh_OLED( void )
     }
 
     snprintf( Buffer, sizeof( Buffer ), "F: %5u Hz", Freq );
-    /* Buffer now contains your character ASCII codes for LED Display
-       - select PAGE (LED Display line) and set starting SEG (column)
-       - for each c = ASCII code = Buffer[0], Buffer[1], ...,
-           send 8 bytes in Characters[c][0-7] to LED Display
-    */
-    //oled_Write_Cmd(0xB1); //select the first page
 
-	/* Wait for ~100 ms (for example) to get ~10 frames/sec refresh rate
-       - You should use TIM3 to implement this delay (e.g., via polling)
-    */
+    oled_Write_Cmd(0xB1); //select the second page
+    oled_Write_Cmd(0x10); //select first segment
+    oled_Write_Cmd(0x00); //select first segment
+    bufferindex = 0;
+    characterindex = 0;
+
+        while(Buffer[bufferindex] != '\0') {
+
+            while(characterindex <= 7) {
+
+            	oled_Write_Data(Characters[Buffer[bufferindex]][characterindex]);
+
+            	characterindex++;
+                refresh_oled_count++;
+            }
+            bufferindex++;
+        }
     wait(100);
-    trace_printf("\nwait done\n");
 
 
 }
@@ -870,7 +877,7 @@ void oled_config( void )
     	for(int j = 0; j <=127; j++){
     		oled_Write_Cmd(seglower2);//select the lower part of the segment address
     		oled_Write_Cmd(segupper2);//select the upper part of the segment address
-    		oled_Write_Data(0x0); //write 8-bit value to the display
+    		oled_Write_Data(0x00); //write 8-bit value to the display
 
     		if (seglower2 == 0x0F){
     			segupper2++;
