@@ -325,6 +325,7 @@ main(int argc, char* argv[])
 	SystemClock48MHz();
 
 	myGPIOA_Init();		/* Initialize I/O port PA */
+	myGPIOB_Init();		/* Initialize I/O port PB */
 	myTIM2_Init();		/* Initialize timer TIM2 */
 	myTIM3_Init();		/* Initialize timer TIM3 */
 	myEXTI_Init();		/* Initialize EXTI */
@@ -366,21 +367,21 @@ void refresh_OLED( void )
        - for each c = ASCII code = Buffer[0], Buffer[1], ...,
            send 8 bytes in Characters[c][0-7] to LED Display
     */
-//    oled_Write_Cmd(0xB0); //select the first page
-//    oled_Write_Cmd(0x10); //select rfirst segment
-//    oled_Write_Cmd(0x02); //select rfirst segment
+    oled_Write_Cmd(0xB0); //select the first page
+    oled_Write_Cmd(0x10); //select first segment
+    oled_Write_Cmd(0x00); //select first segment
 //
-//    while(Buffer[bufferindex] != '\0') {
-//
-//        while(characterindex <= 7) {
-//
-//        	oled_Write_Data(Characters[Buffer[bufferindex]][characterindex]);
-//
-//        	characterindex++;
-//            refresh_oled_count++;
-//        }
-//        bufferindex++;
-//    }
+    while(Buffer[bufferindex] != '\0') {
+
+        while(characterindex <= 7) {
+
+        	oled_Write_Data(Characters[Buffer[bufferindex]][characterindex]);
+
+        	characterindex++;
+            refresh_oled_count++;
+        }
+        bufferindex++;
+    }
 
     snprintf( Buffer, sizeof( Buffer ), "F: %5u Hz", Freq );
     /* Buffer now contains your character ASCII codes for LED Display
@@ -394,6 +395,9 @@ void refresh_OLED( void )
        - You should use TIM3 to implement this delay (e.g., via polling)
     */
     wait(100);
+    trace_printf("\nwait done\n");
+
+
 }
 
 //From lab 2: Modified frequency measurer
@@ -430,13 +434,13 @@ void myGPIOB_Init()
 	GPIOB->MODER |= GPIO_MODER_MODER3_1; //set as alternate function, allowing SPI and screen control
 
 	//Configure PB4 to connect to reset RES on OLED
-	GPIOB->MODER |= GPIO_MODER_MODER4; //analog mode
+	GPIOB->MODER |= GPIO_MODER_MODER4_0; //general output mode
 
 	//Configure PB5 for MOSI to OLED
 	GPIOB->MODER |= GPIO_MODER_MODER5_1; //set as alternate function, allowing SPI and screen control
 
 	//Configure PB6 to connect to chip select CS on OLED
-	GPIOB->MODER |= GPIO_MODER_MODER6; //analog mode
+	GPIOB->MODER |= GPIO_MODER_MODER6_0; //general output mode
 
 	//Configure PB7 to connect to data command DC on OLED
 	GPIOB->MODER |= GPIO_MODER_MODER7; //analog mode
@@ -856,7 +860,7 @@ void oled_config( void )
     */
     unsigned char page = 0xB0;
     unsigned char segupper2 = 0x10;
-    unsigned char seglower2 = 0x02;
+    unsigned char seglower2 = 0x00;
 
 
 
@@ -868,9 +872,9 @@ void oled_config( void )
     		oled_Write_Cmd(segupper2);//select the upper part of the segment address
     		oled_Write_Data(0x0); //write 8-bit value to the display
 
-    		if (seglower2 == 0xF){
+    		if (seglower2 == 0x0F){
     			segupper2++;
-				seglower2 = 0x0;
+				seglower2 = 0x00;
     		} else {
     			seglower2++;
     		}
