@@ -63,7 +63,7 @@
 
 
 unsigned int Freq = 0;  // Example: measured period value (global variable)
-unsigned int Res = 800;   // Example: measured resistance value (global variable)
+unsigned int Res = 0;   // Example: measured resistance value (global variable)
 
 //From lab 2: Modified frequency measurer
 /* Clock prescaler for TIM2 timer: no prescaling */
@@ -335,9 +335,6 @@ main(int argc, char* argv[])
 
     mySPI_Init();       /* Initialize for SPI communications with OLED*/
     oled_config();
-    //trace_printf("how many times: %u us\n", (unsigned int)(seg_clear_count));
-
-	//refresh_OLED();
 
 	while (1)
 	{
@@ -367,9 +364,9 @@ void refresh_OLED( void )
        - for each c = ASCII code = Buffer[0], Buffer[1], ...,
            send 8 bytes in Characters[c][0-7] to LED Display
     */
-    oled_Write_Cmd(0xB0); //select the first page
+    oled_Write_Cmd(0xB2); //select the first page (row on which we want to display this info)
     oled_Write_Cmd(0x10); //select first segment
-    oled_Write_Cmd(0x00); //select first segment
+    oled_Write_Cmd(0x02); //select first segment
 //
     while(Buffer[bufferindex] != '\0') {
 
@@ -378,16 +375,16 @@ void refresh_OLED( void )
         	oled_Write_Data(Characters[Buffer[bufferindex]][characterindex]);
 
         	characterindex++;
-            refresh_oled_count++;
+            //refresh_oled_count++;
         }
         bufferindex++;
     }
 
     snprintf( Buffer, sizeof( Buffer ), "F: %5u Hz", Freq );
 
-    oled_Write_Cmd(0xB1); //select the second page
+    oled_Write_Cmd(0xB4); //select the second page
     oled_Write_Cmd(0x10); //select first segment
-    oled_Write_Cmd(0x00); //select first segment
+    oled_Write_Cmd(0x02); //select first segment
     bufferindex = 0;
     characterindex = 0;
 
@@ -438,18 +435,27 @@ void myGPIOB_Init()
 
 	/* Configure SPI ports for OLED */
 	//Configure PB3 to connect to serial clock SCLK on OLED
+    GPIOB->MODER &= ~(GPIO_MODER_MODER3); //clear the function mode bits for proper out/in selection
 	GPIOB->MODER |= GPIO_MODER_MODER3_1; //set as alternate function, allowing SPI and screen control
+    GPIOB->AFR[0] &= ~(GPIO_AFRL_AFSEL3);       // Reset AF selection bits
+	GPIOB->AFR[0] |= (0x0 << GPIO_AFRL_AFSEL3_Pos); // Set AF0
 
 	//Configure PB4 to connect to reset RES on OLED
+    GPIOB->MODER &= ~(GPIO_MODER_MODER4); //clear the function mode bits for proper out/in selection
 	GPIOB->MODER |= GPIO_MODER_MODER4_0; //general output mode
 
 	//Configure PB5 for MOSI to OLED
+    GPIOB->MODER &= ~(GPIO_MODER_MODER5); //clear the function mode bits for proper out/in selection
 	GPIOB->MODER |= GPIO_MODER_MODER5_1; //set as alternate function, allowing SPI and screen control
+    GPIOB->AFR[0] &= ~(GPIO_AFRL_AFSEL5);       // Reset AF selection bits
+	GPIOB->AFR[0] |= (0x0 << GPIO_AFRL_AFSEL5_Pos); // Set AF0
 
 	//Configure PB6 to connect to chip select CS on OLED
+    GPIOB->MODER &= ~(GPIO_MODER_MODER6); //clear the function mode bits for proper out/in selection
 	GPIOB->MODER |= GPIO_MODER_MODER6_0; //general output mode
 
 	//Configure PB7 to connect to data command DC on OLED
+    GPIOB->MODER &= ~(GPIO_MODER_MODER7); //clear the function mode bits for proper out/in selection
 	GPIOB->MODER |= GPIO_MODER_MODER7; //analog mode
 
 	/* Ensure no pull-up/pull-down*/
@@ -740,8 +746,6 @@ void ADC_reader(){
 
 	ADC1->ISR &= ~ADC_ISR_EOC; //Clear the end of conversion flag
 
-
-
     //We will want the potentiometer parameters to print to the screen, this processes and populated those variables
 
 	POT_val = (ADC1->DR & ADC_DR_DATA);//read out the group conversion data to global variable ( & ADC_DR_DATA)
@@ -789,35 +793,35 @@ void wait(uint32_t wait_time){
 void oled_Write_Cmd( unsigned char cmd )
 {
     //... // make PB6 = CS# = 1
-	GPIOB->ODR |= GPIO_ODR_6;
+	GPIOB->BSRR = GPIO_BSRR_BS_6;
 
     //... // make PB7 = D/C# = 0
-	GPIOB->ODR &= ~(GPIO_ODR_7);
+	GPIOB->BSRR = GPIO_BSRR_BR_7;
 
     //... // make PB6 = CS# = 0
-	GPIOB->ODR &= ~(GPIO_ODR_6);
+	GPIOB->BSRR = GPIO_BSRR_BR_6;
 
     oled_Write( cmd );
 
     //... // make PB6 = CS# = 1
-	GPIOB->ODR |= GPIO_ODR_6;
+	GPIOB->BSRR = GPIO_BSRR_BS_6;
 }
 
 void oled_Write_Data( unsigned char data )
 {
     //... // make PB6 = CS# = 1
-	GPIOB->ODR |= GPIO_ODR_6;
+	GPIOB->BSRR = GPIO_BSRR_BS_6;
 
     //... // make PB7 = D/C# = 1
-	GPIOB->ODR |= GPIO_ODR_7;
+	GPIOB->BSRR = GPIO_BSRR_BS_7;
 
     //... // make PB6 = CS# = 0
-	GPIOB->ODR &= ~(GPIO_ODR_6);
+	GPIOB->BSRR = GPIO_BSRR_BR_6;
 
     oled_Write( data );
 
     //... // make PB6 = CS# = 1
-	GPIOB->ODR |= GPIO_ODR_6;
+	GPIOB->BSRR = GPIO_BSRR_BS_6;
 }
 
 
@@ -844,11 +848,11 @@ void oled_config( void )
 
     // Reset LED Display (RES# = PB4):
        // make pin PB4 = 0, wait for a few ms
-	   GPIOB->ODR &= ~(GPIO_ODR_4);
+	   GPIOB->BSRR = GPIO_BSRR_BR_4;
 	   wait(3);
 
        // make pin PB4 = 1, wait for a few ms
-       GPIOB->ODR |= GPIO_ODR_4;
+       GPIOB->BSRR = GPIO_BSRR_BS_4; 
 	   wait(3);
 
 //
@@ -867,26 +871,17 @@ void oled_config( void )
     */
     unsigned char page = 0xB0;
     unsigned char segupper2 = 0x10;
-    unsigned char seglower2 = 0x00;
-
-
+    unsigned char seglower2 = 0x02;
 
     for(int i = 0; i <= 7; i++){
     	oled_Write_Cmd(page);//select the page
 
     	for(int j = 0; j <=127; j++){
-    		oled_Write_Cmd(seglower2);//select the lower part of the segment address
-    		oled_Write_Cmd(segupper2);//select the upper part of the segment address
-    		oled_Write_Data(0x00); //write 8-bit value to the display
-
-    		if (seglower2 == 0x0F){
-    			segupper2++;
-				seglower2 = 0x00;
-    		} else {
-    			seglower2++;
-    		}
+    		oled_Write_Data(0x00); //write 8-bit value to the display (clearing it)
     	}
 
+        segupper2 = 0x10; //go back to the first segment for turning to the next page
+        seglower2 = 0x02;
     	page++;
     }
 
