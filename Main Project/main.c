@@ -102,6 +102,7 @@ uint16_t characterindex = 0;
 void oled_Write(unsigned char);
 void oled_Write_Cmd(unsigned char);
 void oled_Write_Data(unsigned char);
+void perma_print(void);
 
 void oled_config(void);
 
@@ -333,6 +334,8 @@ main(int argc, char* argv[])
 
     mySPI_Init();       /* Initialize for SPI communications with OLED*/
     oled_config();
+    perma_print();
+    oled_config();
 
 	while (1)
 	{
@@ -347,14 +350,129 @@ main(int argc, char* argv[])
 //
 // LED Display Functions
 //
+void perma_print( void )
+{
 
+    // Buffer size = at most 16 characters per PAGE + terminating '\0'
+    unsigned char Buffer[17];
+
+    snprintf( Buffer, sizeof( Buffer ), "Hi Guoliang! :)");
+    /* Buffer now contains your character ASCII codes for LED Display
+       - select PAGE (LED Display line) and set starting SEG (column)
+       - for each c = ASCII code = Buffer[0], Buffer[1], ...,
+           send 8 bytes in Characters[c][0-7] to LED Display
+    */
+    oled_Write_Cmd(0xB0); //select the second page (row on which we want to display this info)
+    oled_Write_Cmd(0x10); //select first segment
+    oled_Write_Cmd(0x02); //select first segment
+    unsigned char c;
+    bufferindex = 0;
+    characterindex = 0;
+//
+    while(Buffer[bufferindex] != '\0') {
+    	c = Buffer[bufferindex];
+    	characterindex = 0;
+
+        while(characterindex <= 7) {
+        	oled_Write_Data(Characters[c][characterindex]); //Loads all values from the first index of the buffer then goes to next row
+        	characterindex++;
+            //refresh_oled_count++;
+        }
+        bufferindex++;
+
+    }
+    wait(500);
+    // Buffer size = at most 16 characters per PAGE + terminating '\0'
+
+     snprintf( Buffer, sizeof( Buffer ), "Presenting...");
+     /* Buffer now contains your character ASCII codes for LED Display
+        - select PAGE (LED Display line) and set starting SEG (column)
+        - for each c = ASCII code = Buffer[0], Buffer[1], ...,
+            send 8 bytes in Characters[c][0-7] to LED Display
+     */
+     oled_Write_Cmd(0xB2); //select the second page (row on which we want to display this info)
+     oled_Write_Cmd(0x10); //select first segment
+     oled_Write_Cmd(0x02); //select first segment
+     bufferindex = 0;
+     characterindex = 0;
+ //
+     while(Buffer[bufferindex] != '\0') {
+     	c = Buffer[bufferindex];
+     	characterindex = 0;
+
+         while(characterindex <= 7) {
+         	oled_Write_Data(Characters[c][characterindex]); //Loads all values from the first index of the buffer then goes to next row
+         	characterindex++;
+             //refresh_oled_count++;
+         }
+         bufferindex++;
+
+     }
+     wait(500);
+
+     snprintf( Buffer, sizeof( Buffer ), "ECE 355 Project");
+      /* Buffer now contains your character ASCII codes for LED Display
+         - select PAGE (LED Display line) and set starting SEG (column)
+         - for each c = ASCII code = Buffer[0], Buffer[1], ...,
+             send 8 bytes in Characters[c][0-7] to LED Display
+      */
+      oled_Write_Cmd(0xB4); //select the second page (row on which we want to display this info)
+      oled_Write_Cmd(0x10); //select first segment
+      oled_Write_Cmd(0x02); //select first segment
+      bufferindex = 0;
+      characterindex = 0;
+  //
+      while(Buffer[bufferindex] != '\0') {
+      	c = Buffer[bufferindex];
+      	characterindex = 0;
+
+          while(characterindex <= 7) {
+          	oled_Write_Data(Characters[c][characterindex]); //Loads all values from the first index of the buffer then goes to next row
+          	characterindex++;
+              //refresh_oled_count++;
+          }
+          bufferindex++;
+
+      }
+      wait(500);
+
+      snprintf( Buffer, sizeof( Buffer ), "Sophie & Menoa");
+        /* Buffer now contains your character ASCII codes for LED Display
+           - select PAGE (LED Display line) and set starting SEG (column)
+           - for each c = ASCII code = Buffer[0], Buffer[1], ...,
+               send 8 bytes in Characters[c][0-7] to LED Display
+        */
+        oled_Write_Cmd(0xB6); //select the second page (row on which we want to display this info)
+        oled_Write_Cmd(0x10); //select first segment
+        oled_Write_Cmd(0x02); //select first segment
+        bufferindex = 0;
+        characterindex = 0;
+    //
+        while(Buffer[bufferindex] != '\0') {
+        	c = Buffer[bufferindex];
+        	characterindex = 0;
+
+            while(characterindex <= 7) {
+            	oled_Write_Data(Characters[c][characterindex]); //Loads all values from the first index of the buffer then goes to next row
+            	characterindex++;
+                //refresh_oled_count++;
+            }
+            bufferindex++;
+
+        }
+
+
+
+    wait(500);
+
+
+}
 
 void refresh_OLED( void )
 {
 
     // Buffer size = at most 16 characters per PAGE + terminating '\0'
     unsigned char Buffer[17];
-    unsigned char label;
 
     snprintf( Buffer, sizeof( Buffer ), "Res: %5u Ohms", Res );
     /* Buffer now contains your character ASCII codes for LED Display
@@ -402,31 +520,6 @@ void refresh_OLED( void )
 		bufferindex++;
 	}
 
-	if(input_line == 1){
-		label = 'Source is 555 timer';
-	} else {
-		label = 'Source is fuct gen';
-	}
-
-		snprintf( Buffer, sizeof( Buffer ), "%d", label); //prints only when the buffer is full (sizeof(Buffer))
-
-			    oled_Write_Cmd(0xB6); //select the fourth page
-			    oled_Write_Cmd(0x10); //select first segment
-			    oled_Write_Cmd(0x02); //select first segment
-			    bufferindex = 0;
-			    characterindex = 0;
-
-				while(Buffer[bufferindex] != '\0') {
-					c = Buffer[bufferindex];
-					characterindex = 0;
-
-					while(characterindex <= 7) {
-						oled_Write_Data(Characters[c][characterindex]); //Loads all values from the first index of the buffer then goes to next row
-						characterindex++;
-						//refresh_oled_count++;
-					}
-					bufferindex++;
-				}
 
     wait(100);
 
