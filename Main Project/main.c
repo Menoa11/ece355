@@ -72,7 +72,7 @@ unsigned int Res = 0;   // Example: measured resistance value (global variable)
 #define myTIM2_PERIOD ((uint32_t)0xFFFFFFFF)
 
 /* 1ms prescaler */
-#define myTIM3_PRESCALER (47999)
+#define myTIM3_PRESCALER (0xBB74) //47999
 /* 10ms delay time as a base value*/
 #define myTIM3_PERIOD (100)
 
@@ -354,48 +354,80 @@ void refresh_OLED( void )
 
     // Buffer size = at most 16 characters per PAGE + terminating '\0'
     unsigned char Buffer[17];
+    unsigned char label;
 
-    snprintf( Buffer, sizeof( Buffer ), "R: %5u Ohms", Res );
+    snprintf( Buffer, sizeof( Buffer ), "Res: %5u Ohms", Res );
     /* Buffer now contains your character ASCII codes for LED Display
        - select PAGE (LED Display line) and set starting SEG (column)
        - for each c = ASCII code = Buffer[0], Buffer[1], ...,
            send 8 bytes in Characters[c][0-7] to LED Display
     */
-    oled_Write_Cmd(0xB2); //select the first page (row on which we want to display this info)
+    oled_Write_Cmd(0xB2); //select the second page (row on which we want to display this info)
     oled_Write_Cmd(0x10); //select first segment
     oled_Write_Cmd(0x02); //select first segment
+    unsigned char c;
+    bufferindex = 0;
+    characterindex = 0;
 //
     while(Buffer[bufferindex] != '\0') {
+    	c = Buffer[bufferindex];
+    	characterindex = 0;
 
         while(characterindex <= 7) {
-
-        	oled_Write_Data(Characters[Buffer[bufferindex]][characterindex]);
-
+        	oled_Write_Data(Characters[c][characterindex]); //Loads all values from the first index of the buffer then goes to next row
         	characterindex++;
             //refresh_oled_count++;
         }
         bufferindex++;
+
     }
 
-    snprintf( Buffer, sizeof( Buffer ), "F: %5u Hz", Freq );
+    snprintf( Buffer, sizeof( Buffer ), "Freq: %5u Hz", Freq ); //prints only when the buffer is full (sizeof(Buffer))
 
-    oled_Write_Cmd(0xB4); //select the second page
+    oled_Write_Cmd(0xB4); //select the fourth page
     oled_Write_Cmd(0x10); //select first segment
     oled_Write_Cmd(0x02); //select first segment
     bufferindex = 0;
     characterindex = 0;
 
-        while(Buffer[bufferindex] != '\0') {
+	while(Buffer[bufferindex] != '\0') {
+		c = Buffer[bufferindex];
+		characterindex = 0;
 
-            while(characterindex <= 7) {
+		while(characterindex <= 7) {
+			oled_Write_Data(Characters[c][characterindex]); //Loads all values from the first index of the buffer then goes to next row
+			characterindex++;
+			//refresh_oled_count++;
+		}
+		bufferindex++;
+	}
 
-            	oled_Write_Data(Characters[Buffer[bufferindex]][characterindex]);
+	if(input_line == 1){
+		label = 'Source is 555 timer';
+	} else {
+		label = 'Source is fuct gen';
+	}
 
-            	characterindex++;
-                refresh_oled_count++;
-            }
-            bufferindex++;
-        }
+		snprintf( Buffer, sizeof( Buffer ), "%d", label); //prints only when the buffer is full (sizeof(Buffer))
+
+			    oled_Write_Cmd(0xB6); //select the fourth page
+			    oled_Write_Cmd(0x10); //select first segment
+			    oled_Write_Cmd(0x02); //select first segment
+			    bufferindex = 0;
+			    characterindex = 0;
+
+				while(Buffer[bufferindex] != '\0') {
+					c = Buffer[bufferindex];
+					characterindex = 0;
+
+					while(characterindex <= 7) {
+						oled_Write_Data(Characters[c][characterindex]); //Loads all values from the first index of the buffer then goes to next row
+						characterindex++;
+						//refresh_oled_count++;
+					}
+					bufferindex++;
+				}
+
     wait(100);
 
 
@@ -453,7 +485,7 @@ void myGPIOB_Init()
 
 	//Configure PB7 to connect to data command DC on OLED
     GPIOB->MODER &= ~(GPIO_MODER_MODER7); //clear the function mode bits for proper out/in selection
-	GPIOB->MODER |= GPIO_MODER_MODER7; //analog mode
+	GPIOB->MODER |= GPIO_MODER_MODER7_0; //general output mode
 
 	/* Ensure no pull-up/pull-down*/
 	// Relevant register: GPIOB->PUPDR
@@ -860,7 +892,7 @@ void oled_config( void )
 	   wait(3);
 
        // make pin PB4 = 1, wait for a few ms
-       GPIOB->BSRR = GPIO_BSRR_BS_4; 
+       GPIOB->BSRR = GPIO_BSRR_BS_4;
 	   wait(3);
 
 //
@@ -878,18 +910,19 @@ void oled_config( void )
            call oled_Write_Data( 0x00 ) 128 times
     */
     unsigned char page = 0xB0;
-    unsigned char segupper2 = 0x10;
-    unsigned char seglower2 = 0x02;
+    oled_Write_Cmd(0x02);
+    oled_Write_Cmd(0x10);
 
     for(int i = 0; i <= 7; i++){
     	oled_Write_Cmd(page);//select the page
+    	oled_Write_Cmd(0x02);
+    	oled_Write_Cmd(0x10);
 
     	for(int j = 0; j <=127; j++){
     		oled_Write_Data(0x00); //write 8-bit value to the display (clearing it)
     	}
 
-        segupper2 = 0x10; //go back to the first segment for turning to the next page
-        seglower2 = 0x02;
+
     	page++;
     }
 
