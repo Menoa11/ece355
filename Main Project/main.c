@@ -89,13 +89,11 @@ void myEXTI_Init(void);
 void myADC_Init(void);
 void myDAC_Init(void);
 void mySPI_Init(void);
-void ADC_reader(void); // for reading ADC values
-void DAC_writer(void); //For ouputting value through the DAC
+void ADC_reader(void); // for reading ADC values and setting DAC value
 void wait(uint32_t wait_time); //Use tim3 to generate a delay
 //From lab 2: Modified frequency measurer
 uint16_t input_line = 1; //to tell which line (555 or function) we are currently pushing thru
 uint32_t POT_val = 0; //raw data from the ADC
-uint32_t POT_pos = 0; //POT position in relation to POT max
 uint16_t bufferindex = 0;
 uint16_t characterindex = 0;
 
@@ -338,9 +336,8 @@ main(int argc, char* argv[])
 
 	while (1)
 	{
-		//ADC_reader(); //continuously reading from the ADC
-        //DAC_writer(); //output to the DAC
-		refresh_OLED();
+		ADC_reader(); //continuously reading from the ADC to update DAC output
+		refresh_OLED(); //continously refreshing the OLED screen
 
 	}
 }
@@ -550,7 +547,7 @@ void myEXTI_Init()
 	EXTI->RTSR |= EXTI_RTSR_TR1; //Set rising edge trigger for EXTI1
 	EXTI->RTSR |= EXTI_RTSR_TR2; //Set rising edge trigger for EXTI2
 
-	/* Unmask interrupts from EXTI2 line */
+	/* Unmask interrupts from EXTI lines */
 	// Relevant register: EXTI->IMR
 	EXTI->IMR |= EXTI_IMR_IM0;
 	EXTI->IMR |= EXTI_IMR_IM1;
@@ -689,10 +686,10 @@ void EXTI2_3_IRQHandler()
                 //	- Read out count register (TIM2->CNT).
                 float periodd = (float)(TIM2->CNT) / (float)SystemCoreClock;
                 //	- Calculate signal period and frequency.
+                Freq = (unsigned int)((1)/(periodd)); //update frequency value
 
                 //	- Print calculated values to the console.
-                trace_printf("Signal Period: %u us\n", (unsigned int)(periodd * 1e6));
-                trace_printf("Signal Frequency: %u Hz\n", (unsigned int)((1)/(periodd)));
+                //trace_printf("Signal Frequency: %u Hz\n", Freq);
                 //	  NOTE: Function trace_printf does not work
                 //	  with floating-point numbers: you must use
                 //	  "unsigned int" type to print your signal
@@ -713,36 +710,61 @@ void EXTI2_3_IRQHandler()
 
 void EXTI0_1_IRQHandler()
 {
-
-	// Check if EXTI0 interrupt pending flag is indeed set
+	// Check if EXTI0 interrupt pending flag is indeed set (button pushed)
 	if ((EXTI->PR & EXTI_PR_PR0) != 0) {
-
-		trace_printf("button pressed\n");
 
 		if(input_line == 1) {
 			input_line = 2;
+            //clear the mask on EXTI2 line interrupts
+        	EXTI->IMR |= EXTI_IMR_IM2;
 		} else {
 			input_line = 1;
+            //mask the EXTI2 interrupt line
+            EXTI->IMR &= ~(EXTI_IMR_IM2);
 		}
-		EXTI->PR |= EXTI_PR_PR0;
-		trace_printf("input line is now: %u \n",input_line);
+		EXTI->PR |= EXTI_PR_PR0; //clear pending flag
 
 	}
 	// Check if EXTI1 interrupt pending flag is indeed set
 	if ((EXTI->PR & EXTI_PR_PR1) != 0){
 
-		trace_printf("555 yes\n");
-		EXTI->PR |= EXTI_PR_PR1;
+        //only want to manipulate values and measure if the input line is set to 1 currently (PA2 as input).
+        if(input_line == 1){
+            // 1. If this is the first edge:
+            if (edge_count == 0) {
+                //	- Clear count register (TIM2->CNT).
+                TIM2->CNT &= 0b00000000;
+                //	- Start timer (TIM2->CR1).
+                TIM2->CR1 |= TIM_CR1_CEN;
+                edge_count = 1;
+
+            } else {
+                //	- Stop timer (TIM2->CR1).
+                TIM2->CR1 &= ~TIM_CR1_CEN;
+                //	- Read out count register (TIM2->CNT).
+                float periodd = (float)(TIM2->CNT) / (float)SystemCoreClock;
+                //	- Calculate signal period and frequency.
+                Freq = (unsigned int)((1)/(periodd)); //update frequency value
+
+                //	- Print calculated values to the console.
+                //trace_printf("Signal Frequency: %u Hz\n", Freq);
+                //	  NOTE: Function trace_printf does not work
+                //	  with floating-point numbers: you must use
+                //	  "unsigned int" type to print your signal
+                //	  period and frequency.
+                edge_count = 0;
+
+            }
+
+        }
+
+		EXTI->PR |= EXTI_PR_PR1; //clear pending flag
 	}
 }
 
 void ADC_reader(){
 
-
-
 	while ((ADC1->ISR & ADC_ISR_EOC) == 0){}; //wait until the end of conversion flag is set
-
-	//ADC1->CR |= ADC_CR_ADSTP; //Stop group regular conversion
 
 	ADC1->ISR &= ~ADC_ISR_EOC; //Clear the end of conversion flag
 
@@ -750,26 +772,12 @@ void ADC_reader(){
 
 	POT_val = (ADC1->DR & ADC_DR_DATA);//read out the group conversion data to global variable ( & ADC_DR_DATA)
 
-	POT_pos = ((((float)POT_val)/((float)(0xFFF)))*5000); //position
+	Res = ((((float)POT_val)/((float)(0xFFF)))*5000); //position (resistance value)
 
-	//ADC1->DR &= ~ADC_DR_DATA_5; //clear the read data
+	//trace_printf("POT values is: %u \nPOT position is: %u\n", POT_val, Res);
 
-	trace_printf("POT values is: %u \nPOT position is: %u\n", POT_val, POT_pos);
+    DAC->DHR12R1 = ADC1->DR; //write the ADC value to the DAC
 
-}
-
-void DAC_writer(){
-
-	if(DAC_tracker == 0){
-		//DAC->DHR12R1 = 0x777788888888; //writing a value to the 12 bit right aligned DAC register
-		DAC_tracker = 1;
-	} else if (DAC_tracker == 1){
-		//DAC->DHR12R1 = 0x888888888888; //writing a value to the 12 bit right aligned DAC register
-		DAC_tracker = 2;
-	} else {
-		//DAC->DHR12R1 = 0xFFFFFFFFFFFF; //writing a value to the 12 bit right aligned DAC register
-		DAC_tracker = 0;
-	}
 }
 
 void wait(uint32_t wait_time){
