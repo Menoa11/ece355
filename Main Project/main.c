@@ -57,29 +57,15 @@
 #pragma GCC diagnostic ignored "-Wmissing-declarations"
 #pragma GCC diagnostic ignored "-Wreturn-type"
 
+/*Timer prescaler and period value presets*/
 
-/*** This is partial code for accessing LED Display via SPI interface. ***/
+#define myTIM2_PRESCALER ((uint16_t)0x0000) //no prescaling
+#define myTIM2_PERIOD ((uint32_t)0xFFFFFFFF) //max setting for overflow
 
+#define myTIM3_PRESCALER (0xBB74) //47999 for 1ms prescaler
+#define myTIM3_PERIOD (100) //10ms base value
 
-
-unsigned int Freq = 0;  // Example: measured period value (global variable)
-unsigned int Res = 0;   // Example: measured resistance value (global variable)
-
-//From lab 2: Modified frequency measurer
-/* Clock prescaler for TIM2 timer: no prescaling */
-#define myTIM2_PRESCALER ((uint16_t)0x0000)
-/* Maximum possible setting for overflow */
-#define myTIM2_PERIOD ((uint32_t)0xFFFFFFFF)
-
-/* 1ms prescaler */
-#define myTIM3_PRESCALER (0xBB74) //47999
-/* 10ms delay time as a base value*/
-#define myTIM3_PERIOD (100)
-
-uint16_t edge_count = 0;
-uint16_t DAC_tracker = 0;
-//uint16_t seg_clear_count = 0;
-uint16_t refresh_oled_count = 0;
+/*Initialization Method definitions*/
 
 void myGPIOA_Init(void);
 void myGPIOB_Init(void);
@@ -89,26 +75,29 @@ void myEXTI_Init(void);
 void myADC_Init(void);
 void myDAC_Init(void);
 void mySPI_Init(void);
-void ADC_reader(void); // for reading ADC values and setting DAC value
-void wait(uint32_t wait_time); //Use tim3 to generate a delay
-//From lab 2: Modified frequency measurer
-uint16_t input_line = 1; //to tell which line (555 or function) we are currently pushing thru
-uint32_t POT_val = 0; //raw data from the ADC
-uint16_t bufferindex = 0;
-uint16_t characterindex = 0;
 
-
+/* Functional Method definitions*/
 
 void oled_Write(unsigned char);
 void oled_Write_Cmd(unsigned char);
 void oled_Write_Data(unsigned char);
 void perma_print(void);
-
 void oled_config(void);
-
 void refresh_OLED(void);
+void ADC_reader(void); // for reading ADC values and setting DAC value
+void wait(uint32_t wait_time); //Use tim3 to generate a delay
+
+/*Global Variable definitions*/
 
 
+unsigned int Freq = 0;  // measured period value
+unsigned int Res = 0;   // measured resistance value
+
+uint16_t edge_count = 0; //for measuring frequency of source
+uint16_t input_line = 1; //to tell which line (555 or function) we are currently measuring
+uint32_t POT_val = 0; //raw data from the ADC
+uint16_t bufferindex = 0; //index to move through buffer array to print to screen
+uint16_t characterindex = 0; //index to move through each string in buffer index
 SPI_HandleTypeDef SPI_Handle;
 
 
@@ -277,48 +266,27 @@ unsigned char Characters[][8] = {
 };
 
 
-
+//function to set system clock speed to 48 MHz
 void SystemClock48MHz( void )
 {
-//
-// Disable the PLL
-//
-    RCC->CR &= ~(RCC_CR_PLLON);
-//
-// Wait for the PLL to unlock
-//
-    while (( RCC->CR & RCC_CR_PLLRDY ) != 0 );
-//
-// Configure the PLL for a 48MHz system clock
-//
-    RCC->CFGR = 0x00280000;
+    RCC->CR &= ~(RCC_CR_PLLON); // Disable the PLL
 
-//
-// Enable the PLL
-//
-    RCC->CR |= RCC_CR_PLLON;
+    while (( RCC->CR & RCC_CR_PLLRDY ) != 0 ); // Wait for the PLL to unlock
 
-//
-// Wait for the PLL to lock
-//
-    while (( RCC->CR & RCC_CR_PLLRDY ) != RCC_CR_PLLRDY );
+    RCC->CFGR = 0x00280000; // Configure the PLL for a 48MHz system clock
 
-//
-// Switch the processor to the PLL clock source
-//
-    RCC->CFGR = ( RCC->CFGR & (~RCC_CFGR_SW_Msk)) | RCC_CFGR_SW_PLL;
+    RCC->CR |= RCC_CR_PLLON; // Enable the PLL
 
-//
-// Update the system with the new clock frequency
-//
-    SystemCoreClockUpdate();
+    while (( RCC->CR & RCC_CR_PLLRDY ) != RCC_CR_PLLRDY ); // Wait for the PLL to lock
 
+    RCC->CFGR = ( RCC->CFGR & (~RCC_CFGR_SW_Msk)) | RCC_CFGR_SW_PLL; // Switch the processor to the PLL clock source
+
+    SystemCoreClockUpdate(); // Update the system with the new clock frequency
 }
 
 
-
-int
-main(int argc, char* argv[])
+//Main function
+int main(int argc, char* argv[])
 {
 
 	SystemClock48MHz();
@@ -333,28 +301,26 @@ main(int argc, char* argv[])
     myDAC_Init();       /* Initialize DAC*/
 
     mySPI_Init();       /* Initialize for SPI communications with OLED*/
-    oled_config();
-    perma_print();
-    oled_config();
+    oled_config();      /*Reset OLED*/
+    perma_print();      /*Print welcome message to OLED*/
+    oled_config();      /*Reset OLEd again to begin printing res and freq*/
 
 	while (1)
 	{
 		ADC_reader(); //continuously reading from the ADC to update DAC output
-		refresh_OLED(); //continously refreshing the OLED screen
+		refresh_OLED(); //continuously refreshing the OLED screen
 
 	}
 }
 
 
-
-//
-// LED Display Functions
-//
+//Function to print to screen without being in refresh_oled which cycles in the main.
 void perma_print( void )
 {
 
     // Buffer size = at most 16 characters per PAGE + terminating '\0'
     unsigned char Buffer[17];
+    unsigned char c; //to index through Buffer
 
     snprintf( Buffer, sizeof( Buffer ), "Hi Guoliang! :)");
     /* Buffer now contains your character ASCII codes for LED Display
@@ -362,13 +328,13 @@ void perma_print( void )
        - for each c = ASCII code = Buffer[0], Buffer[1], ...,
            send 8 bytes in Characters[c][0-7] to LED Display
     */
-    oled_Write_Cmd(0xB0); //select the second page (row on which we want to display this info)
+    oled_Write_Cmd(0xB0); //select the row on which we want to display this info
     oled_Write_Cmd(0x10); //select first segment
     oled_Write_Cmd(0x02); //select first segment
-    unsigned char c;
+
     bufferindex = 0;
     characterindex = 0;
-//
+
     while(Buffer[bufferindex] != '\0') {
     	c = Buffer[bufferindex];
     	characterindex = 0;
@@ -376,26 +342,19 @@ void perma_print( void )
         while(characterindex <= 7) {
         	oled_Write_Data(Characters[c][characterindex]); //Loads all values from the first index of the buffer then goes to next row
         	characterindex++;
-            //refresh_oled_count++;
         }
         bufferindex++;
 
     }
     wait(500);
-    // Buffer size = at most 16 characters per PAGE + terminating '\0'
 
      snprintf( Buffer, sizeof( Buffer ), "Presenting...");
-     /* Buffer now contains your character ASCII codes for LED Display
-        - select PAGE (LED Display line) and set starting SEG (column)
-        - for each c = ASCII code = Buffer[0], Buffer[1], ...,
-            send 8 bytes in Characters[c][0-7] to LED Display
-     */
-     oled_Write_Cmd(0xB2); //select the second page (row on which we want to display this info)
+     oled_Write_Cmd(0xB2); //select the row on which we want to display this info
      oled_Write_Cmd(0x10); //select first segment
      oled_Write_Cmd(0x02); //select first segment
      bufferindex = 0;
      characterindex = 0;
- //
+
      while(Buffer[bufferindex] != '\0') {
      	c = Buffer[bufferindex];
      	characterindex = 0;
@@ -403,7 +362,6 @@ void perma_print( void )
          while(characterindex <= 7) {
          	oled_Write_Data(Characters[c][characterindex]); //Loads all values from the first index of the buffer then goes to next row
          	characterindex++;
-             //refresh_oled_count++;
          }
          bufferindex++;
 
@@ -411,17 +369,12 @@ void perma_print( void )
      wait(500);
 
      snprintf( Buffer, sizeof( Buffer ), "ECE 355 Project");
-      /* Buffer now contains your character ASCII codes for LED Display
-         - select PAGE (LED Display line) and set starting SEG (column)
-         - for each c = ASCII code = Buffer[0], Buffer[1], ...,
-             send 8 bytes in Characters[c][0-7] to LED Display
-      */
-      oled_Write_Cmd(0xB4); //select the second page (row on which we want to display this info)
+      oled_Write_Cmd(0xB4); //select the row on which we want to display this info
       oled_Write_Cmd(0x10); //select first segment
       oled_Write_Cmd(0x02); //select first segment
       bufferindex = 0;
       characterindex = 0;
-  //
+
       while(Buffer[bufferindex] != '\0') {
       	c = Buffer[bufferindex];
       	characterindex = 0;
@@ -429,7 +382,6 @@ void perma_print( void )
           while(characterindex <= 7) {
           	oled_Write_Data(Characters[c][characterindex]); //Loads all values from the first index of the buffer then goes to next row
           	characterindex++;
-              //refresh_oled_count++;
           }
           bufferindex++;
 
@@ -437,17 +389,12 @@ void perma_print( void )
       wait(500);
 
       snprintf( Buffer, sizeof( Buffer ), "Sophie & Menoa");
-        /* Buffer now contains your character ASCII codes for LED Display
-           - select PAGE (LED Display line) and set starting SEG (column)
-           - for each c = ASCII code = Buffer[0], Buffer[1], ...,
-               send 8 bytes in Characters[c][0-7] to LED Display
-        */
-        oled_Write_Cmd(0xB6); //select the second page (row on which we want to display this info)
+        oled_Write_Cmd(0xB6); //select the row on which we want to display this info
         oled_Write_Cmd(0x10); //select first segment
         oled_Write_Cmd(0x02); //select first segment
         bufferindex = 0;
         characterindex = 0;
-    //
+
         while(Buffer[bufferindex] != '\0') {
         	c = Buffer[bufferindex];
         	characterindex = 0;
@@ -455,24 +402,22 @@ void perma_print( void )
             while(characterindex <= 7) {
             	oled_Write_Data(Characters[c][characterindex]); //Loads all values from the first index of the buffer then goes to next row
             	characterindex++;
-                //refresh_oled_count++;
             }
             bufferindex++;
 
         }
 
-
-
     wait(500);
-
 
 }
 
+//function that continuously is called in main to print current frequency and resistance values
 void refresh_OLED( void )
 {
 
     // Buffer size = at most 16 characters per PAGE + terminating '\0'
     unsigned char Buffer[17];
+    unsigned char c; //to index through Buffer
 
     snprintf( Buffer, sizeof( Buffer ), "Res: %5u Ohms", Res );
     /* Buffer now contains your character ASCII codes for LED Display
@@ -480,13 +425,13 @@ void refresh_OLED( void )
        - for each c = ASCII code = Buffer[0], Buffer[1], ...,
            send 8 bytes in Characters[c][0-7] to LED Display
     */
-    oled_Write_Cmd(0xB2); //select the second page (row on which we want to display this info)
+    oled_Write_Cmd(0xB2); //select the row on which we want to display this info
     oled_Write_Cmd(0x10); //select first segment
     oled_Write_Cmd(0x02); //select first segment
-    unsigned char c;
+
     bufferindex = 0;
     characterindex = 0;
-//
+
     while(Buffer[bufferindex] != '\0') {
     	c = Buffer[bufferindex];
     	characterindex = 0;
@@ -494,7 +439,6 @@ void refresh_OLED( void )
         while(characterindex <= 7) {
         	oled_Write_Data(Characters[c][characterindex]); //Loads all values from the first index of the buffer then goes to next row
         	characterindex++;
-            //refresh_oled_count++;
         }
         bufferindex++;
 
@@ -515,7 +459,6 @@ void refresh_OLED( void )
 		while(characterindex <= 7) {
 			oled_Write_Data(Characters[c][characterindex]); //Loads all values from the first index of the buffer then goes to next row
 			characterindex++;
-			//refresh_oled_count++;
 		}
 		bufferindex++;
 	}
@@ -526,16 +469,13 @@ void refresh_OLED( void )
 
 }
 
-//From lab 2: Modified frequency measurer
-
+//Intialize general purpose input/output pins in port A
 void myGPIOA_Init()
 {
 	/* Enable clock for GPIOA peripheral */
-	// Relevant register: RCC->AHBENR
 	RCC->AHBENR |= RCC_AHBENR_GPIOAEN;
 
 	/* Configure PA2 as input */
-	// Relevant register: GPIOA->MODER
 	GPIOA->MODER &= ~(GPIO_MODER_MODER2);
 	GPIOA->MODER |= (GPIO_MODER_MODER5); //pin 5 as analog input
 
@@ -543,16 +483,15 @@ void myGPIOA_Init()
     GPIOA->MODER |= GPIO_MODER_MODER4;
 
 	/* Ensure no pull-up/pull-down for PA2, PA5, PA4 */
-	// Relevant register: GPIOA->PUPDR
 	GPIOA->PUPDR &= ~(GPIO_PUPDR_PUPDR2);
 	GPIOA->PUPDR &= ~(GPIO_PUPDR_PUPDR5);//pin 5
     GPIOA->PUPDR &= ~(GPIO_PUPDR_PUPDR4);//pin 4
 }
 
+//Intialize general purpose input/output pins in port B
 void myGPIOB_Init()
 {
 	/* Enable clock for GPIOB peripheral */
-	// Relevant register: RCC->AHBENR
 	RCC->AHBENR |= RCC_AHBENR_GPIOBEN;
 
 	/* Configure SPI ports for OLED */
@@ -581,7 +520,6 @@ void myGPIOB_Init()
 	GPIOB->MODER |= GPIO_MODER_MODER7_0; //general output mode
 
 	/* Ensure no pull-up/pull-down*/
-	// Relevant register: GPIOB->PUPDR
 	GPIOB->PUPDR &= ~(GPIO_PUPDR_PUPDR3);
 	GPIOB->PUPDR &= ~(GPIO_PUPDR_PUPDR4);
     GPIOB->PUPDR &= ~(GPIO_PUPDR_PUPDR5);
@@ -589,49 +527,44 @@ void myGPIOB_Init()
     GPIOB->PUPDR &= ~(GPIO_PUPDR_PUPDR7);
 }
 
+//Initialization for timer 2
 void myTIM2_Init()
 {
 	/* Enable clock for TIM2 peripheral */
-	// Relevant register: RCC->APB1ENR
 	RCC->APB1ENR |= RCC_APB1ENR_TIM2EN;
 
 	/* Configure TIM2: buffer auto-reload, count up, stop on overflow,
 	 * enable update events, interrupt on overflow only */
-	// Relevant register: TIM2->CR1
 	TIM2->CR1 = 0x008C;
 
 	/* Set clock prescaler value */
 	TIM2->PSC = myTIM2_PRESCALER;
+
 	/* Set auto-reloaded delay */
 	TIM2->ARR = myTIM2_PERIOD;
 
 	/* Update timer registers */
-	// Relevant register: TIM2->EGR
 	TIM2->EGR = 0x0001;
 
 	/* Assign TIM2 interrupt priority = 0 in NVIC */
-	// Relevant register: NVIC->IP[3], or use NVIC_SetPriority
 	NVIC_SetPriority(TIM2_IRQn, 0);
 
 	/* Enable TIM2 interrupts in NVIC */
-	// Relevant register: NVIC->ISER[0], or use NVIC_EnableIRQ
 	NVIC_EnableIRQ(TIM2_IRQn);
 
 	/* Enable update interrupt generation */
-	// Relevant register: TIM2->DIER
 	TIM2->DIER |= TIM_DIER_UIE;
 
 }
 
+//Initialization for timer 3
 void myTIM3_Init()
 {
 	/* Enable clock for TIM3 peripheral */
-	// Relevant register: RCC->APB1ENR
 	RCC->APB1ENR |= RCC_APB1ENR_TIM3EN;
 
 	/* Configure TIM3: buffer auto-reload, count up, stop on overflow,
 	 * enable update events, interrupt on overflow only */
-	// Relevant register: TIM3->CR1
 	TIM3->CR1 = 0x008C;
 
 	/* Set clock prescaler value */
@@ -640,66 +573,57 @@ void myTIM3_Init()
 	TIM3->ARR = myTIM3_PERIOD;
 
 	/* Update timer registers */
-	// Relevant register: TIM3->EGR
 	TIM3->EGR = 0x0001;
 
 	/* Assign TIM3 interrupt priority = 0 in NVIC */
-	// Relevant register: NVIC->IP[3], or use NVIC_SetPriority
 	NVIC_SetPriority(TIM3_IRQn, 0);
 
 	/* Enable TIM3 interrupts in NVIC */
-	// Relevant register: NVIC->ISER[0], or use NVIC_EnableIRQ
 	NVIC_EnableIRQ(TIM3_IRQn);
 
 	/* Enable update interrupt generation */
-	// Relevant register: TIM3->DIER
 	TIM3->DIER |= TIM_DIER_UIE;
 
 }
 
-
+//Initialization for external interrupts
 void myEXTI_Init()
 {
 	/* Map EXTI2 line to PA2 */
-	// Relevant register: SYSCFG->EXTICR[0]
 	SYSCFG->EXTICR[0] |= SYSCFG_EXTICR1_EXTI0_PA ; //To connect PA0 to EXTI0 (button)
 	SYSCFG->EXTICR[0] |= SYSCFG_EXTICR1_EXTI1_PA ; //To connect PA1 to EXTI1
 	SYSCFG->EXTICR[0] |= SYSCFG_EXTICR1_EXTI2_PA ; //Now connect PA2 (0x00) to EXTI2 (bits 8-11 of EXTICR)
 
 	/* EXTI2 line interrupts: set rising-edge trigger */
-	// Relevant register: EXTI->RTSR
 	EXTI->RTSR |= EXTI_RTSR_TR0; //Set rising edge trigger for EXTI0
 	EXTI->RTSR |= EXTI_RTSR_TR1; //Set rising edge trigger for EXTI1
 	EXTI->RTSR |= EXTI_RTSR_TR2; //Set rising edge trigger for EXTI2
 
 	/* Unmask interrupts from EXTI lines */
-	// Relevant register: EXTI->IMR
 	EXTI->IMR |= EXTI_IMR_IM0;
 	EXTI->IMR |= EXTI_IMR_IM1;
 	EXTI->IMR |= EXTI_IMR_IM2;
 
 	/* Assign EXTI2 interrupt priority = 0 in NVIC */
-	// Relevant register: NVIC->IP[2], or use NVIC_SetPriority
 	NVIC_SetPriority(EXTI0_1_IRQn, 0); //Make sure EXTI0 is priority 0
 	NVIC_SetPriority(EXTI2_3_IRQn, 1); //Make sure EXTI2 is priority 0
 
 	/* Enable EXTI2 interrupts in NVIC */
-	// Relevant register: NVIC->ISER[0], or use NVIC_EnableIRQ
 	NVIC_EnableIRQ(EXTI0_1_IRQn); //enable EXTI0 interrupt line
 	NVIC_EnableIRQ(EXTI2_3_IRQn); //enable EXTI2 interrupt line
 }
 
+//Initialization for internal ADC
 void myADC_Init()
 {
 	RCC->APB2ENR |= RCC_APB2ENR_ADCEN; //Enable clock for the ADC1 on the board
-
-
 
 	ADC1->CR = ADC_CR_ADCAL; // calibrate the ADC contol register
 
 	while ((ADC1->CR & ADC_CR_ADCAL) != 0 ); //once done calibrating, the bit will be set back to 0. Ensure program waits for this
 
 	ADC1->CR |= ADC_CR_ADEN; //enable the ADC
+
 	ADC1->CHSELR |= ADC_CHSELR_CHSEL5; //set internal ADC to read from ADC channel 5 (PA5)
 
 	ADC1->CFGR1 |= ADC_CFGR1_CONT; //set up the ADC for continuous sampling
@@ -708,6 +632,7 @@ void myADC_Init()
 
 }
 
+//Initialization for internal DAC
 void myDAC_Init(){
 
     //Note that the built in DAC, when enabled is automatically connected to PA4.
@@ -718,8 +643,8 @@ void myDAC_Init(){
 
 }
 
+//Initialization for internal SPI (not including OLED configuration)
 void mySPI_Init(void) {
-
 
 	RCC->APB2ENR |= RCC_APB2ENR_SPI1EN; //Enable the SPI clock
 
@@ -812,26 +737,16 @@ void EXTI2_3_IRQHandler()
                 float periodd = (float)(TIM2->CNT) / (float)SystemCoreClock;
                 //	- Calculate signal period and frequency.
                 Freq = (unsigned int)((1)/(periodd)); //update frequency value
-
-                //	- Print calculated values to the console.
-                //trace_printf("Signal Frequency: %u Hz\n", Freq);
-                //	  NOTE: Function trace_printf does not work
-                //	  with floating-point numbers: you must use
-                //	  "unsigned int" type to print your signal
-                //	  period and frequency.
                 edge_count = 0;
 
             }
 
         }
-                    //
             // 2. Clear EXTI2 interrupt pending flag (EXTI->PR).
             // note we want to clear it no matter if the operations were performed or not
             EXTI->PR |= EXTI_PR_PR2;
 	}
 }
-
-//From lab 2: Modified frequency measurer
 
 void EXTI0_1_IRQHandler()
 {
@@ -870,23 +785,17 @@ void EXTI0_1_IRQHandler()
                 float periodd = (float)(TIM2->CNT) / (float)SystemCoreClock;
                 //	- Calculate signal period and frequency.
                 Freq = (unsigned int)((1)/(periodd)); //update frequency value
-
-                //	- Print calculated values to the console.
-                //trace_printf("Signal Frequency: %u Hz\n", Freq);
-                //	  NOTE: Function trace_printf does not work
-                //	  with floating-point numbers: you must use
-                //	  "unsigned int" type to print your signal
-                //	  period and frequency.
                 edge_count = 0;
 
             }
 
         }
 
-		EXTI->PR |= EXTI_PR_PR1; //clear pending flag
+		EXTI->PR |= EXTI_PR_PR1; //clear pending flag even if measurement is not taken
 	}
 }
 
+//function to read input values from potentiometer and set to output of DAC
 void ADC_reader(){
 
 	while ((ADC1->ISR & ADC_ISR_EOC) == 0){}; //wait until the end of conversion flag is set
@@ -899,12 +808,11 @@ void ADC_reader(){
 
 	Res = ((((float)POT_val)/((float)(0xFFF)))*5000); //position (resistance value)
 
-	//trace_printf("POT values is: %u \nPOT position is: %u\n", POT_val, Res);
-
     DAC->DHR12R1 = ADC1->DR; //write the ADC value to the DAC
 
 }
 
+//function to create a delay between commands
 void wait(uint32_t wait_time){
 
     //	- Clear count register (TIM2->CNT).
@@ -920,9 +828,9 @@ void wait(uint32_t wait_time){
 
     //	- Stop timer (TIM3->CR1).
     TIM3->CR1 &= ~TIM_CR1_CEN;
-
 }
 
+//Function to select area of screen currently writing to
 void oled_Write_Cmd( unsigned char cmd )
 {
     //... // make PB6 = CS# = 1
@@ -940,6 +848,7 @@ void oled_Write_Cmd( unsigned char cmd )
 	GPIOB->BSRR = GPIO_BSRR_BS_6;
 }
 
+//Function to write data to currently selected section of screen
 void oled_Write_Data( unsigned char data )
 {
     //... // make PB6 = CS# = 1
@@ -957,7 +866,7 @@ void oled_Write_Data( unsigned char data )
 	GPIOB->BSRR = GPIO_BSRR_BS_6;
 }
 
-
+//Function called to write to OLED
 void oled_Write( unsigned char Value )
 {
 
@@ -975,24 +884,21 @@ void oled_Write( unsigned char Value )
 	while ((SPI1->SR & SPI_SR_TXE) == 0){}; //wait until transmit buffer empty flag is set
 }
 
-
+//Function that resets OLEd screen and sets all of its values to 0 to prep for writing
 void oled_config( void )
 {
 
     // Reset LED Display (RES# = PB4):
-       // make pin PB4 = 0, wait for a few ms
-	   GPIOB->BSRR = GPIO_BSRR_BR_4;
-	   wait(3);
+    // make pin PB4 = 0, wait for a few ms
+	GPIOB->BSRR = GPIO_BSRR_BR_4;
+	wait(3);
 
-       // make pin PB4 = 1, wait for a few ms
-       GPIOB->BSRR = GPIO_BSRR_BS_4;
-	   wait(3);
+    // make pin PB4 = 1, wait for a few ms
+    GPIOB->BSRR = GPIO_BSRR_BS_4;
+	wait(3);
 
-//
-// Send initialization commands to LED Display
-//
-    for ( unsigned int i = 0; i < sizeof( oled_init_cmds ); i++ )
-    {
+    // Send initialization commands to LED Display
+    for ( unsigned int i = 0; i < sizeof( oled_init_cmds ); i++ ) {
         oled_Write_Cmd( oled_init_cmds[i] );
     }
 
@@ -1008,22 +914,17 @@ void oled_config( void )
 
     for(int i = 0; i <= 7; i++){
     	oled_Write_Cmd(page);//select the page
-    	oled_Write_Cmd(0x02);
-    	oled_Write_Cmd(0x10);
+    	oled_Write_Cmd(0x02); //select first segment
+    	oled_Write_Cmd(0x10); //select first segment
 
     	for(int j = 0; j <=127; j++){
     		oled_Write_Data(0x00); //write 8-bit value to the display (clearing it)
     	}
 
-
-    	page++;
+    	page++; //increment to next page
     }
 
-
-
 }
-
-
 
 #pragma GCC diagnostic pop
 
