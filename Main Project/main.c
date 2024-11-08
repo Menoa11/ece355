@@ -834,10 +834,10 @@ void wait(uint32_t wait_time){
 void oled_Write_Cmd( unsigned char cmd )
 {
     //... // make PB6 = CS# = 1
-	GPIOB->BSRR = GPIO_BSRR_BS_6;
+	GPIOB->BSRR = GPIO_BSRR_BS_6; //Chip select ensures that communication with the OLED is exclusive
 
     //... // make PB7 = D/C# = 0
-	GPIOB->BSRR = GPIO_BSRR_BR_7;
+	GPIOB->BSRR = GPIO_BSRR_BR_7; //Data/Command (0 command 1 data)
 
     //... // make PB6 = CS# = 0
 	GPIOB->BSRR = GPIO_BSRR_BR_6;
