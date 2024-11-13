@@ -479,13 +479,13 @@ void myGPIOA_Init()
 	GPIOA->MODER &= ~(GPIO_MODER_MODER2);
 	GPIOA->MODER |= (GPIO_MODER_MODER5); //pin 5 as analog input
 
-    /*Configure PA4 as analog output*/
-    GPIOA->MODER |= GPIO_MODER_MODER4;
+    	/*Configure PA4 as analog output*/
+    	GPIOA->MODER |= GPIO_MODER_MODER4;
 
 	/* Ensure no pull-up/pull-down for PA2, PA5, PA4 */
 	GPIOA->PUPDR &= ~(GPIO_PUPDR_PUPDR2);
 	GPIOA->PUPDR &= ~(GPIO_PUPDR_PUPDR5);//pin 5
-    GPIOA->PUPDR &= ~(GPIO_PUPDR_PUPDR4);//pin 4
+    	GPIOA->PUPDR &= ~(GPIO_PUPDR_PUPDR4);//pin 4
 }
 
 //Intialize general purpose input/output pins in port B
@@ -496,35 +496,35 @@ void myGPIOB_Init()
 
 	/* Configure SPI ports for OLED */
 	//Configure PB3 to connect to serial clock SCLK on OLED
-    GPIOB->MODER &= ~(GPIO_MODER_MODER3); //clear the function mode bits for proper out/in selection
+    	GPIOB->MODER &= ~(GPIO_MODER_MODER3); //clear the function mode bits for proper out/in selection
 	GPIOB->MODER |= GPIO_MODER_MODER3_1; //set as alternate function, allowing SPI and screen control
-    GPIOB->AFR[0] &= ~(GPIO_AFRL_AFSEL3);       // Reset AF selection bits
+    	GPIOB->AFR[0] &= ~(GPIO_AFRL_AFSEL3);       // Reset AF selection bits
 	GPIOB->AFR[0] |= (0x0 << GPIO_AFRL_AFSEL3_Pos); // Set AF0
 
 	//Configure PB4 to connect to reset RES on OLED
-    GPIOB->MODER &= ~(GPIO_MODER_MODER4); //clear the function mode bits for proper out/in selection
+    	GPIOB->MODER &= ~(GPIO_MODER_MODER4); //clear the function mode bits for proper out/in selection
 	GPIOB->MODER |= GPIO_MODER_MODER4_0; //general output mode
 
 	//Configure PB5 for MOSI to OLED
-    GPIOB->MODER &= ~(GPIO_MODER_MODER5); //clear the function mode bits for proper out/in selection
+    	GPIOB->MODER &= ~(GPIO_MODER_MODER5); //clear the function mode bits for proper out/in selection
 	GPIOB->MODER |= GPIO_MODER_MODER5_1; //set as alternate function, allowing SPI and screen control
-    GPIOB->AFR[0] &= ~(GPIO_AFRL_AFSEL5);       // Reset AF selection bits
+    	GPIOB->AFR[0] &= ~(GPIO_AFRL_AFSEL5);       // Reset AF selection bits
 	GPIOB->AFR[0] |= (0x0 << GPIO_AFRL_AFSEL5_Pos); // Set AF0
 
 	//Configure PB6 to connect to chip select CS on OLED
-    GPIOB->MODER &= ~(GPIO_MODER_MODER6); //clear the function mode bits for proper out/in selection
+    	GPIOB->MODER &= ~(GPIO_MODER_MODER6); //clear the function mode bits for proper out/in selection
 	GPIOB->MODER |= GPIO_MODER_MODER6_0; //general output mode
 
 	//Configure PB7 to connect to data command DC on OLED
-    GPIOB->MODER &= ~(GPIO_MODER_MODER7); //clear the function mode bits for proper out/in selection
+    	GPIOB->MODER &= ~(GPIO_MODER_MODER7); //clear the function mode bits for proper out/in selection
 	GPIOB->MODER |= GPIO_MODER_MODER7_0; //general output mode
 
 	/* Ensure no pull-up/pull-down*/
 	GPIOB->PUPDR &= ~(GPIO_PUPDR_PUPDR3);
 	GPIOB->PUPDR &= ~(GPIO_PUPDR_PUPDR4);
-    GPIOB->PUPDR &= ~(GPIO_PUPDR_PUPDR5);
+	GPIOB->PUPDR &= ~(GPIO_PUPDR_PUPDR5);
 	GPIOB->PUPDR &= ~(GPIO_PUPDR_PUPDR6);
-    GPIOB->PUPDR &= ~(GPIO_PUPDR_PUPDR7);
+    	GPIOB->PUPDR &= ~(GPIO_PUPDR_PUPDR7);
 }
 
 //Initialization for timer 2
@@ -635,11 +635,11 @@ void myADC_Init()
 //Initialization for internal DAC
 void myDAC_Init(){
 
-    //Note that the built in DAC, when enabled is automatically connected to PA4.
+    	//Note that the built in DAC, when enabled is automatically connected to PA4.
 
-    RCC->APB1ENR |= RCC_APB1ENR_DACEN;  //Enable the clock for the built in DAC
+    	RCC->APB1ENR |= RCC_APB1ENR_DACEN;  //Enable the clock for the built in DAC
 
-    DAC->CR |= DAC_CR_EN1; //Enable DAC channel
+    	DAC->CR |= DAC_CR_EN1; //Enable DAC channel
 
 }
 
