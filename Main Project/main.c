@@ -297,13 +297,13 @@ int main(int argc, char* argv[])
 	myTIM3_Init();		/* Initialize timer TIM3 */
 	myEXTI_Init();		/* Initialize EXTI */
 
-    myADC_Init();       /* Initialize ADC*/
-    myDAC_Init();       /* Initialize DAC*/
+    	myADC_Init();       /* Initialize ADC*/
+    	myDAC_Init();       /* Initialize DAC*/
 
-    mySPI_Init();       /* Initialize for SPI communications with OLED*/
-    oled_config();      /*Reset OLED*/
-    perma_print();      /*Print welcome message to OLED*/
-    oled_config();      /*Reset OLEd again to begin printing res and freq*/
+    	mySPI_Init();       /* Initialize for SPI communications with OLED*/
+    	oled_config();      /*Reset OLED*/
+    	perma_print();      /*Print welcome message to OLED*/
+    	oled_config();      /*Reset OLEd again to begin printing res and freq*/
 
 	while (1)
 	{
