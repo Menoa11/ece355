@@ -768,7 +768,7 @@ void EXTI0_1_IRQHandler()
 	// Check if EXTI1 interrupt pending flag is indeed set
 	if ((EXTI->PR & EXTI_PR_PR1) != 0){
 
-        //only want to manipulate values and measure if the input line is set to 1 currently (PA2 as input).
+        //only want to manipulate values and measure if the input line is set to 1 currently (PA1 as input).
         if(input_line == 1){
             // 1. If this is the first edge:
             if (edge_count == 0) {
